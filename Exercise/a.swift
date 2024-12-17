@@ -42,7 +42,7 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
     var caloriesBurned: Double = 0.0
     var exerciseStartTime: Date?  // 운동 시작 시간
     
-    // Timer for Real-Time Calories using DispatchSourceTimer
+   
     var calorieTimer: DispatchSourceTimer?
     
     // Main Timer for 운동 시간 표시
@@ -52,7 +52,7 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
     var countdownTimer: Timer?
     
     // 추가된 활동 시간 추적 변수
-    var activeExerciseTime: TimeInterval = 0.0 // 실제 운동 시간 추적
+    var activeExerciseTime: TimeInterval = 0.0
     var lastActiveTime: Date?
     
     // 평균 속도 추적 변수
@@ -71,8 +71,6 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
         let image = UIImage(systemName: "camera.rotate")
         button.setImage(image, for: .normal)
         button.tintColor = .white
-        // backgroundColor 제거
-        // button.backgroundColor = UIColor.systemBlue.withAlphaComponent(0.7) // 배경색 제거
         button.layer.cornerRadius = 20
         button.translatesAutoresizingMaskIntoConstraints = false
         return button
@@ -84,8 +82,6 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
         let image = UIImage(systemName: "speaker.wave.2.fill")
         button.setImage(image, for: .normal)
         button.tintColor = .white
-        // 소리 버튼의 배경색 제거
-        // button.backgroundColor = UIColor.systemBlue.withAlphaComponent(0.7)
         button.layer.cornerRadius = 20
         button.translatesAutoresizingMaskIntoConstraints = false
         return button
@@ -96,8 +92,8 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
         let label = UILabel()
         label.text = "00:00"
         label.font = UIFont.monospacedDigitSystemFont(ofSize: 20, weight: .medium)
-        label.textColor = .white // 텍스트는 흰색
-        label.backgroundColor = UIColor.red // 배경색은 빨간색
+        label.textColor = .white 
+        label.backgroundColor = UIColor.red
         label.textAlignment = .center
         label.layer.cornerRadius = 10
         label.layer.masksToBounds = true
@@ -669,7 +665,7 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
             }
         }
     }
-    //MARK: - 임시
+    //MARK: - 운동 데이터 저장
     func saveExerciseSummary() {
         // 운동 종료 시간
         let endTime = Date()
@@ -726,7 +722,7 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
         // 운동 요약 표시
         displaySessionSummary()
         
-        //결과 저장 임시
+        //운동 데이터 저장ㅋ
         saveExerciseSummary()
     }
     

@@ -37,9 +37,9 @@
                 </viewController>
                 <placeholder placeholderIdentifier="IBFirstResponder" id="yer-8T-r1t" userLabel="First Responder" customClass="UIResponder" sceneMemberID="firstResponder"/>
             </objects>
-            <point key="canvasLocation" x="-750" y="-27"/>
+            <point key="canvasLocation" x="-1407" y="-27"/>
         </scene>
-        <!--View Controller-->
+        <!--운동-->
         <scene sceneID="tne-QT-ifu">
             <objects>
                 <viewController id="BYZ-38-t0r" customClass="ViewController" customModule="Exercise" customModuleProvider="target" sceneMemberID="viewController">
@@ -57,11 +57,11 @@
                         <viewLayoutGuide key="safeArea" id="6Tk-OE-BBY"/>
                         <color key="backgroundColor" systemColor="systemBackgroundColor"/>
                     </view>
-                    <tabBarItem key="tabBarItem" image="house" catalog="system" selectedImage="house.fill" id="A6K-pF-keh"/>
+                    <tabBarItem key="tabBarItem" title="운동" image="figure.strengthtraining.functional" catalog="system" id="A6K-pF-keh"/>
                 </viewController>
                 <placeholder placeholderIdentifier="IBFirstResponder" id="dkx-z0-nzr" sceneMemberID="firstResponder"/>
             </objects>
-            <point key="canvasLocation" x="1051" y="-27"/>
+            <point key="canvasLocation" x="-1231" y="746"/>
         </scene>
         <!--Tab Bar Controller-->
         <scene sceneID="xuG-DS-tV2">
@@ -81,9 +81,9 @@
                 </tabBarController>
                 <placeholder placeholderIdentifier="IBFirstResponder" id="aUc-bG-23d" userLabel="First Responder" customClass="UIResponder" sceneMemberID="firstResponder"/>
             </objects>
-            <point key="canvasLocation" x="130.53435114503816" y="-27.464788732394368"/>
+            <point key="canvasLocation" x="-480" y="-27"/>
         </scene>
-        <!--Settings View Controller-->
+        <!--세팅-->
         <scene sceneID="evc-0K-IeG">
             <objects>
                 <viewController id="1Gr-fP-0Xg" customClass="SettingsViewController" customModule="Exercise" customModuleProvider="target" sceneMemberID="viewController">
@@ -93,13 +93,13 @@
                         <viewLayoutGuide key="safeArea" id="yVf-FD-KuB"/>
                         <color key="backgroundColor" systemColor="systemBackgroundColor"/>
                     </view>
-                    <tabBarItem key="tabBarItem" image="gear" catalog="system" selectedImage="gear" id="N8e-y1-7jx"/>
+                    <tabBarItem key="tabBarItem" title="세팅" image="gear" catalog="system" selectedImage="gear" id="N8e-y1-7jx"/>
                 </viewController>
                 <placeholder placeholderIdentifier="IBFirstResponder" id="vLU-4S-48S" userLabel="First Responder" customClass="UIResponder" sceneMemberID="firstResponder"/>
             </objects>
-            <point key="canvasLocation" x="-480" y="746"/>
+            <point key="canvasLocation" x="297" y="746"/>
         </scene>
-        <!--Statistics View Controller-->
+        <!--기록-->
         <scene sceneID="XSH-hz-f6s">
             <objects>
                 <viewController id="dBB-nR-fT4" customClass="StatisticsViewController" customModule="Exercise" customModuleProvider="target" sceneMemberID="viewController">
@@ -109,34 +109,17 @@
                         <viewLayoutGuide key="safeArea" id="ksW-3K-xNZ"/>
                         <color key="backgroundColor" systemColor="systemBackgroundColor"/>
                     </view>
-                    <tabBarItem key="tabBarItem" title="" image="chart.bar.fill" catalog="system" selectedImage="chart.bar" id="rYl-tN-C2J"/>
+                    <tabBarItem key="tabBarItem" title="기록" image="chart.line.text.clipboard.fill" catalog="system" id="rYl-tN-C2J"/>
                 </viewController>
                 <placeholder placeholderIdentifier="IBFirstResponder" id="T60-lf-rnE" userLabel="First Responder" customClass="UIResponder" sceneMemberID="firstResponder"/>
             </objects>
-            <point key="canvasLocation" x="703" y="746"/>
-        </scene>
-        <!--Exercise Detail View Controller-->
-        <scene sceneID="B9a-Oz-Ukw">
-            <objects>
-                <viewController id="Vv0-ec-gH1" customClass="ExerciseDetailViewController" customModule="Exercise" customModuleProvider="target" sceneMemberID="viewController">
-                    <view key="view" contentMode="scaleToFill" id="uTD-n2-wim">
-                        <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
-                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
-                        <viewLayoutGuide key="safeArea" id="xS6-yJ-XfQ"/>
-                        <color key="backgroundColor" systemColor="systemBackgroundColor"/>
-                    </view>
-                </viewController>
-                <placeholder placeholderIdentifier="IBFirstResponder" id="TOO-gX-2qI" userLabel="First Responder" customClass="UIResponder" sceneMemberID="firstResponder"/>
-            </objects>
-            <point key="canvasLocation" x="1719" y="775"/>
+            <point key="canvasLocation" x="-480" y="746"/>
         </scene>
     </scenes>
     <resources>
-        <image name="chart.bar" catalog="system" width="128" height="89"/>
-        <image name="chart.bar.fill" catalog="system" width="128" height="90"/>
+        <image name="chart.line.text.clipboard.fill" catalog="system" width="103" height="128"/>
+        <image name="figure.strengthtraining.functional" catalog="system" width="117" height="128"/>
         <image name="gear" catalog="system" width="128" height="122"/>
-        <image name="house" catalog="system" width="128" height="104"/>
-        <image name="house.fill" catalog="system" width="128" height="104"/>
         <systemColor name="systemBackgroundColor">
             <color white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
         </systemColor>
