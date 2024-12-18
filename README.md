@@ -61,6 +61,10 @@ UserFlow
 
 
 
+테스트 영상: https://youtube.com/shorts/0HO_RmDRxOE?si=OXRAgKZOz8KNViny
+
+
+
 
 
 
