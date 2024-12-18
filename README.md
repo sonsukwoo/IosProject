@@ -67,7 +67,9 @@ UserFlow
 - 날짜별 운동 기록: 날짜별로 진행했던 운동 목록들을 시간순으로 오름/내림 차순으로 나열. 각 셀 클릭시 자세한 정보
 
 
-
+어플 사진
+![IMG_1192FC8A3B1B-1](https://github.com/user-attachments/assets/9f39577f-f227-44d7-a5dd-b931beb2927e)
+![IMG_23B1049F0347-1](https://github.com/user-attachments/assets/eec7e847-6111-42dd-8abd-8bd68cce0349)
 
 
 
