@@ -68,13 +68,14 @@ UserFlow
 - 날짜별 운동 기록: 날짜별로 진행했던 운동 목록들을 시간순으로 오름/내림 차순으로 나열. 각 셀 클릭시 자세한 정보
 
 
-어플 사진 이미지
-- [어플 사진.pdf](https://github.com/user-attachments/files/18184811/default.pdf)
+어플 이미지
+- [어플 이미지.pdf](https://github.com/user-attachments/files/18184828/default.pdf)
 
 
-테스트 영상: https://youtube.com/shorts/0HO_RmDRxOE?si=OXRAgKZOz8KNViny
+시연 영상
+- https://youtube.com/shorts/0HO_RmDRxOE?si=OXRAgKZOz8KNViny
 
-
+- [ScreenRecording_12-18-2024 08-02-23_1.mov.zip](https://github.com/user-attachments/files/18184857/ScreenRecording_12-18-2024.08-02-23_1.mov.zip)
 
 
 
