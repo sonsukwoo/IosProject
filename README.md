@@ -77,9 +77,7 @@ UserFlow
 
 - [ScreenRecording_12-18-2024 08-02-23_1.mov.zip](https://github.com/user-attachments/files/18184857/ScreenRecording_12-18-2024.08-02-23_1.mov.zip)
 
-- https://github.com/user-attachments/assets/3431fa4b-38e5-4163-bd77-8289e310dd93
-
-
+- [ScreenRecording_12-19-2024 00-24-37_1 2.mov.zip](https://github.com/user-attachments/files/18184928/ScreenRecording_12-19-2024.00-24-37_1.2.mov.zip)
 
 
 
