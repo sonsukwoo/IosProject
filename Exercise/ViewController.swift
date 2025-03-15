@@ -1,4 +1,4 @@
-import UIKit
+import UIKit  // 메인 화면
 
 // MARK: - ViewController 클래스
 class ViewController: UIViewController, UIPickerViewDelegate, UIPickerViewDataSource {
@@ -19,7 +19,7 @@ class ViewController: UIViewController, UIPickerViewDelegate, UIPickerViewDataSo
     
     // MARK: - 프로퍼티
     // 운동 모드별 설정 저장을 위한 딕셔너리
-    var exerciseSettings: [a.ExerciseMode: ExerciseSettings] = [
+    var exerciseSettings: [ExerciseViewController.ExerciseMode: ExerciseSettings] = [
         .squat: ExerciseSettings(targetRepetitions: 10, targetSets: 1, restTime: 30),
         .pushUp: ExerciseSettings(targetRepetitions: 10, targetSets: 1, restTime: 30),
         .pullUp: ExerciseSettings(targetRepetitions: 10, targetSets: 1, restTime: 30),
@@ -46,7 +46,7 @@ class ViewController: UIViewController, UIPickerViewDelegate, UIPickerViewDataSo
     var setButton: UIView!
     
     // 현재 설정 중인 운동 모드
-    var currentExerciseMode: a.ExerciseMode?
+    var currentExerciseMode: ExerciseViewController.ExerciseMode?
     
     // MARK: - UserDefaults 키 정의
     struct UserDefaultsKeys {
@@ -58,14 +58,28 @@ class ViewController: UIViewController, UIPickerViewDelegate, UIPickerViewDataSo
     
     override func viewDidLoad() {
         super.viewDidLoad()
+        // 항상 다크 모드로 표시 (시스템 모드에 상관없이)
+        self.overrideUserInterfaceStyle = .dark
+        
+        // 현재 컨텍스트를 제공하여 SettingsViewController 전환 시 하단 탭 바 등이 유지되도록 함
+        self.definesPresentationContext = true
+        
         loadSettingsFromUserDefaults() // 설정 불러오기
         setupUI()
         updateButtonTitles() // 불러온 설정으로 버튼 타이틀 업데이트
     }
     
+    // 메인 화면이 다시 나타날 때, 혹은 탭바에서 메인 버튼이 선택될 때 SettingsViewController가 모달로 남아있다면 dismiss 처리
+    override func viewWillAppear(_ animated: Bool) {
+        super.viewWillAppear(animated)
+        if let presentedVC = self.presentedViewController, presentedVC is SettingsViewController {
+            presentedVC.dismiss(animated: false, completion: nil)
+        }
+    }
+    
     // MARK: - UI 구성
     func setupUI() {
-        // 배경색 설정
+        // 배경색 설정 (다크 모드이므로 검은색)
         view.backgroundColor = .systemBackground
         
         // 상단 제목 추가
@@ -106,7 +120,7 @@ class ViewController: UIViewController, UIPickerViewDelegate, UIPickerViewDataSo
             settingsAction: #selector(settingsButtonTapped(_:))
         )
         setButton = createCustomButton(  // 추후 업데이트 기능
-            title: "3개 운동 총합",
+            title: "릴레이",
             subtitle: "",
             color: .systemOrange,
             iconName: "list.bullet",
@@ -125,7 +139,7 @@ class ViewController: UIViewController, UIPickerViewDelegate, UIPickerViewDataSo
         
         // 하단 설명 라벨 추가
         let footerLabel = UILabel()
-        footerLabel.text = "운동 목표를 설정하려면 각 버튼 설정 아이콘을 누르세요"
+        footerLabel.text = "*운동 목표를 설정하려면 각 버튼의 설정 아이콘을 누르세요"
         footerLabel.textAlignment = .center
         footerLabel.font = UIFont.systemFont(ofSize: 14)
         footerLabel.textColor = UIColor.lightGray
@@ -146,7 +160,8 @@ class ViewController: UIViewController, UIPickerViewDelegate, UIPickerViewDataSo
             stackView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
             stackView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
             
-            footerLabel.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -10),
+            // footerLabel이 stackView에 더 가까워짐
+            footerLabel.topAnchor.constraint(equalTo: stackView.bottomAnchor, constant: 10),
             footerLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
             footerLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20)
         ])
@@ -164,7 +179,7 @@ class ViewController: UIViewController, UIPickerViewDelegate, UIPickerViewDataSo
         
         // 레이블 설정
         let repetitionsLabel = UILabel()
-        repetitionsLabel.text = "개수"
+        repetitionsLabel.text = "횟수"
         repetitionsLabel.font = UIFont.systemFont(ofSize: 14, weight: .medium)
         repetitionsLabel.textColor = .white
         repetitionsLabel.textAlignment = .center
@@ -205,8 +220,6 @@ class ViewController: UIViewController, UIPickerViewDelegate, UIPickerViewDataSo
         restTimePicker.dataSource = self
         restTimePicker.tag = 3
         restTimePicker.translatesAutoresizingMaskIntoConstraints = false
-        
-        // 초기 선택값 설정은 presentSettings에서 수행
         
         // 저장 버튼
         saveSettingsButton = UIButton(type: .system)
@@ -283,7 +296,7 @@ class ViewController: UIViewController, UIPickerViewDelegate, UIPickerViewDataSo
     }
     
     // MARK: - 버튼 및 세팅 버튼 추가
-    func createCustomButton(title: String, subtitle: String, color: UIColor, iconName: String, exerciseMode: a.ExerciseMode, mainAction: Selector?, settingsAction: Selector?) -> UIView {
+    func createCustomButton(title: String, subtitle: String, color: UIColor, iconName: String, exerciseMode: ExerciseViewController.ExerciseMode, mainAction: Selector?, settingsAction: Selector?) -> UIView {
         let containerView = UIView()
         containerView.translatesAutoresizingMaskIntoConstraints = false
         containerView.backgroundColor = .black // 배경색을 검은색으로 변경
@@ -398,15 +411,21 @@ class ViewController: UIViewController, UIPickerViewDelegate, UIPickerViewDataSo
     
     // MARK: - 버튼 동작
     @objc func squatButtonTapped() {
-        navigateToExerciseMode(.squat)
+        if checkPhysicalSpecs() {
+            navigateToExerciseMode(.squat)
+        }
     }
     
     @objc func pushUpButtonTapped() {
-        navigateToExerciseMode(.pushUp)
+        if checkPhysicalSpecs() {
+            navigateToExerciseMode(.pushUp)
+        }
     }
     
     @objc func pullUpButtonTapped() {
-        navigateToExerciseMode(.pullUp)
+        if checkPhysicalSpecs() {
+            navigateToExerciseMode(.pullUp)
+        }
     }
     
     @objc func setButtonTapped() {
@@ -433,8 +452,8 @@ class ViewController: UIViewController, UIPickerViewDelegate, UIPickerViewDataSo
     }
     
     // MARK: - 화면 전환
-    func navigateToExerciseMode(_ mode: a.ExerciseMode) {
-        if let exerciseVC = storyboard?.instantiateViewController(withIdentifier: "ExerciseViewController") as? a {
+    func navigateToExerciseMode(_ mode: ExerciseViewController.ExerciseMode) {
+        if let exerciseVC = storyboard?.instantiateViewController(withIdentifier: "ExerciseViewController") as? ExerciseViewController {
             exerciseVC.selectedMode = mode
             // 해당 운동 모드의 설정을 전달
             if let settings = exerciseSettings[mode] {
@@ -449,7 +468,7 @@ class ViewController: UIViewController, UIPickerViewDelegate, UIPickerViewDataSo
         }
     }
     
-    // MARK: - 설정 화면 호출
+    // MARK: - 설정 화면 호출 (운동 설정)
     func presentSettings() {
         // 설정 컨테이너 뷰를 표시 (애니메이션 포함)
         settingsContainerView.alpha = 0
@@ -474,6 +493,29 @@ class ViewController: UIViewController, UIPickerViewDelegate, UIPickerViewDataSo
         }
     }
     
+    // MARK: - 신체 스펙 확인 (처음 실행 시 초기값인 경우 안내)
+    func checkPhysicalSpecs() -> Bool {
+        // UserDefaults에서 신체 스펙 값 읽기
+        let storedGender = UserDefaults.standard.string(forKey: "gender") ?? "설정 안됨"
+        let storedAge = UserDefaults.standard.integer(forKey: "age")
+        let storedHeight = UserDefaults.standard.integer(forKey: "height")
+        let storedWeight = UserDefaults.standard.integer(forKey: "weight")
+        
+        // 만약 성별이 "설정 안됨"이거나 나이, 신장, 몸무게 중 하나라도 0이면 아직 신체 스펙이 설정되지 않은 것으로 판단
+        if storedGender == "설정 안됨" || storedAge == 0 || storedHeight == 0 || storedWeight == 0 {
+            let alert = UIAlertController(title: nil, message: "신체 스펙 먼저 설정해주세요", preferredStyle: .alert)
+            alert.addAction(UIAlertAction(title: "확인", style: .default, handler: { _ in
+                // 탭바 컨트롤러가 있다면 SettingsViewController가 포함된 탭(예: 인덱스 1)으로 전환
+                if let tabBarController = self.tabBarController {
+                    tabBarController.selectedIndex = 2
+                }
+            }))
+            self.present(alert, animated: true, completion: nil)
+            return false
+        }
+        return true
+    }
+    
     // MARK: - 설정 저장 및 취소 액션
     @objc func saveSettingsTapped() {
         guard let mode = currentExerciseMode else { return }
@@ -489,6 +531,9 @@ class ViewController: UIViewController, UIPickerViewDelegate, UIPickerViewDataSo
         
         // 운동별 설정 업데이트
         exerciseSettings[mode] = ExerciseSettings(targetRepetitions: newRepetitions, targetSets: newSets, restTime: newRestTime)
+        
+        // UserDefaults에 저장
+        saveSettingsToUserDefaults()
         
         // 설정 컨테이너 뷰 숨기기 (애니메이션 포함)
         UIView.animate(withDuration: 0.3, animations: {
@@ -508,8 +553,6 @@ class ViewController: UIViewController, UIPickerViewDelegate, UIPickerViewDataSo
         }) { _ in
             self.settingsContainerView.isHidden = true
         }
-        
-        // 초기 설정값으로 피커뷰 리셋은 이미 settingsContainerView를 표시할 때 했으므로 별도의 작업이 필요 없습니다
     }
     
     // MARK: - UIPickerViewDataSource
@@ -556,13 +599,12 @@ class ViewController: UIViewController, UIPickerViewDelegate, UIPickerViewDataSo
             case .pullUp:
                 updateButtonSubtitle(button: pullUpButton, newSubtitle: "\(settings.targetRepetitions)회 / \(settings.targetSets)set / \(settings.restTime)s 휴식")
             case .none:
-                // 세트 프로는 별도의 서브타이틀을 사용
-                updateButtonSubtitle(button: setButton, newSubtitle: "세트 설정을 편집하려면 클릭하세요.")
+                updateButtonSubtitle(button: setButton, newSubtitle: "운동 순서를 편집하려면 클릭하세요.")
             }
         }
     }
     
-    func updateButtonTitles(for mode: a.ExerciseMode) {
+    func updateButtonTitles(for mode: ExerciseViewController.ExerciseMode) {
         guard let settings = exerciseSettings[mode] else { return }
         switch mode {
         case .squat:

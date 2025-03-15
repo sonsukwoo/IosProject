@@ -3,8 +3,8 @@ import Vision
 import AVFoundation
 import AudioToolbox
 
-// MARK: - 클래스 정의 & 프로토콜 구현
-class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
+// MARK: - ExerciseViewController 클래스 정의 및 프로토콜 구현
+class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
     
     // MARK: - 열거형 정의
     enum ExerciseMode {
@@ -27,8 +27,8 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
     var isPositionCorrect = false
     var repetitions = 0
     var targetRepetitions: Int = 10 // 초기값, ViewController에서 설정
-    var targetSets: Int = 3 // 초기값, ViewController에서 설정
-    var restTime: Int = 30 // 초기값, ViewController에서 설정
+    var targetSets: Int = 3         // 초기값, ViewController에서 설정
+    var restTime: Int = 30          // 초기값, ViewController에서 설정
     var squatDepthThreshold: CGFloat = 80
     var holdStartTime: Date?
     var currentSet = 1
@@ -42,7 +42,6 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
     var caloriesBurned: Double = 0.0
     var exerciseStartTime: Date?  // 운동 시작 시간
     
-   
     var calorieTimer: DispatchSourceTimer?
     
     // Main Timer for 운동 시간 표시
@@ -63,9 +62,23 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
     let speechSynthesizer = AVSpeechSynthesizer()
     var isSpeechEnabled: Bool = true
     
+    // 진동 기능 사용 여부 (UserDefaults)
+    var vibrationEnabled: Bool {
+        return UserDefaults.standard.bool(forKey: "isVibrationEnabled")
+    }
+    
+    // 턱걸이 관련 상태 변수 – 기존 카운트 기준 방식을 고수합니다.
+    var isBarGrabbed: Bool = false
+    var barGrabStartTime: Date?
+    // 봉 놓음(손목이 어깨 미만으로 내려간 상태) 유지 시간 체크
+    var barReleaseStartTime: Date?
+    
+    var lastWristY: CGFloat?
+    var lastWristUpdateTime: Date?
+    
     // MARK: - UI Elements (프로그램 방식으로 정의)
     
-    // 카메라 회전 버튼 (좌측 상단) - 배경색 제거
+    // 카메라 회전 버튼 (좌측 상단)
     let switchCameraButton: UIButton = {
         let button = UIButton(type: .system)
         let image = UIImage(systemName: "camera.rotate")
@@ -92,7 +105,7 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
         let label = UILabel()
         label.text = "00:00"
         label.font = UIFont.monospacedDigitSystemFont(ofSize: 20, weight: .medium)
-        label.textColor = .white 
+        label.textColor = .white
         label.backgroundColor = UIColor.red
         label.textAlignment = .center
         label.layer.cornerRadius = 10
@@ -106,7 +119,7 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
         let label = UILabel()
         label.text = "운동을 시작하세요!"
         label.font = UIFont.systemFont(ofSize: 16, weight: .medium)
-        label.textColor = .white // 텍스트는 흰색
+        label.textColor = .white
         label.textAlignment = .center
         label.backgroundColor = UIColor.clear
         label.numberOfLines = 0
@@ -125,7 +138,7 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
         label.textColor = .white
         label.textAlignment = .center
         label.backgroundColor = UIColor.clear
-        label.layer.cornerRadius = 100 // 원형을 위해
+        label.layer.cornerRadius = 100
         label.layer.masksToBounds = true
         label.isHidden = true
         label.translatesAutoresizingMaskIntoConstraints = false
@@ -145,7 +158,7 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
     // 정보 스택뷰 (반복 횟수, 세트 수, 평균 속도, 칼로리)
     let infoStackView: UIStackView = {
         let stackView = UIStackView()
-        stackView.axis = .vertical // 수직으로 설정
+        stackView.axis = .vertical
         stackView.spacing = 5
         stackView.alignment = .fill
         stackView.translatesAutoresizingMaskIntoConstraints = false
@@ -179,7 +192,7 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
         let label = UILabel()
         label.text = "반복 횟수"
         label.font = UIFont.systemFont(ofSize: 16, weight: .regular)
-        label.textColor = .gray // 회색으로 설정
+        label.textColor = .gray
         label.textAlignment = .center
         label.translatesAutoresizingMaskIntoConstraints = false
         return label
@@ -190,7 +203,7 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
         let label = UILabel()
         label.text = "세트 수"
         label.font = UIFont.systemFont(ofSize: 16, weight: .regular)
-        label.textColor = .gray // 회색으로 설정
+        label.textColor = .gray
         label.textAlignment = .center
         label.translatesAutoresizingMaskIntoConstraints = false
         return label
@@ -201,7 +214,7 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
         let label = UILabel()
         label.text = "평균 속도"
         label.font = UIFont.systemFont(ofSize: 16, weight: .regular)
-        label.textColor = .gray // 회색으로 설정
+        label.textColor = .gray
         label.textAlignment = .center
         label.translatesAutoresizingMaskIntoConstraints = false
         return label
@@ -212,7 +225,7 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
         let label = UILabel()
         label.text = "칼로리"
         label.font = UIFont.systemFont(ofSize: 16, weight: .regular)
-        label.textColor = .gray // 회색으로 설정
+        label.textColor = .gray
         label.textAlignment = .center
         label.translatesAutoresizingMaskIntoConstraints = false
         return label
@@ -221,9 +234,9 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
     // 반복 횟수 값 레이블
     let repetitionsValueLabel: UILabel = {
         let label = UILabel()
-        label.text = "0 / 10" // 초기값, ViewController에서 설정
+        label.text = "0 / 10"
         label.font = UIFont.boldSystemFont(ofSize: 16)
-        label.textColor = .white // 흰색으로 설정
+        label.textColor = .white
         label.textAlignment = .center
         label.translatesAutoresizingMaskIntoConstraints = false
         return label
@@ -232,9 +245,9 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
     // 세트 수 값 레이블
     let setsValueLabel: UILabel = {
         let label = UILabel()
-        label.text = "1 / 3" // 초기값, ViewController에서 설정
+        label.text = "1 / 3"
         label.font = UIFont.boldSystemFont(ofSize: 16)
-        label.textColor = .white // 흰색으로 설정
+        label.textColor = .white
         label.textAlignment = .center
         label.translatesAutoresizingMaskIntoConstraints = false
         return label
@@ -245,7 +258,7 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
         let label = UILabel()
         label.text = "0.0초"
         label.font = UIFont.boldSystemFont(ofSize: 16)
-        label.textColor = .white // 흰색으로 설정
+        label.textColor = .white
         label.textAlignment = .center
         label.translatesAutoresizingMaskIntoConstraints = false
         return label
@@ -256,7 +269,7 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
         let label = UILabel()
         label.text = "0.00 kcal"
         label.font = UIFont.boldSystemFont(ofSize: 16)
-        label.textColor = .white // 흰색으로 설정
+        label.textColor = .white
         label.textAlignment = .center
         label.translatesAutoresizingMaskIntoConstraints = false
         return label
@@ -286,9 +299,30 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
         return button
     }()
     
+    // MARK: - (추가) CustomSummaryViewController 서브클래스
+    class CustomExerciseRecordSummaryViewController: ExerciseRecordSummaryViewController {
+        var onDismiss: (() -> Void)?
+        
+        override func viewDidDisappear(_ animated: Bool) {
+            super.viewDidDisappear(animated)
+            if self.isBeingDismissed {
+                onDismiss?()
+            }
+        }
+    }
+    
     // MARK: - 뷰 라이프사이클
     override func viewDidLoad() {
         super.viewDidLoad()
+        self.overrideUserInterfaceStyle = .dark
+        
+        // UserDefaults에서 음성 사용 여부 불러오기 (저장된 값이 없으면 기본 true)
+        if let savedSpeechEnabled = UserDefaults.standard.value(forKey: "isSpeechEnabled") as? Bool {
+            isSpeechEnabled = savedSpeechEnabled
+        } else {
+            isSpeechEnabled = true
+        }
+        
         setupUI()
         setupCamera()
         setupCountdownProgress()
@@ -297,11 +331,12 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
     
     override func viewWillAppear(_ animated: Bool) {
         super.viewWillAppear(animated)
-        // 앱 라이프사이클 알림 등록
+        // 운동 중에는 화면 꺼짐 방지
+        UIApplication.shared.isIdleTimerDisabled = true
+        
         NotificationCenter.default.addObserver(self, selector: #selector(appWillResignActive), name: UIApplication.willResignActiveNotification, object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(appDidBecomeActive), name: UIApplication.didBecomeActiveNotification, object: nil)
         
-        // UserDefaults에서 설정 불러오기
         if let savedTargetRepetitions = UserDefaults.standard.value(forKey: "targetRepetitions") as? Int, savedTargetRepetitions > 0 {
             targetRepetitions = savedTargetRepetitions
         }
@@ -314,7 +349,6 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
             restTime = savedRestTime
         }
         
-        // 운동 시작 자동화: selectedMode가 설정된 후 이 뷰로 전환될 때 startExercise 호출
         if selectedMode != .none {
             startExercise()
         } else {
@@ -324,14 +358,15 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
     
     override func viewDidLayoutSubviews() {
         super.viewDidLayoutSubviews()
-        // previewLayer와 overlayLayer의 프레임을 업데이트하여 레이아웃 완료 후 설정
         previewLayer.frame = cameraView.bounds
         overlayLayer.frame = cameraView.bounds
     }
     
     override func viewWillDisappear(_ animated: Bool) {
         super.viewWillDisappear(animated)
-        // 앱 라이프사이클 알림 제거
+        // 화면 꺼짐 설정 원래대로 복원
+        UIApplication.shared.isIdleTimerDisabled = false
+        
         NotificationCenter.default.removeObserver(self)
     }
     
@@ -347,7 +382,6 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
     func setupUI() {
         view.backgroundColor = .black
         
-        // 카메라 회전 버튼
         view.addSubview(switchCameraButton)
         NSLayoutConstraint.activate([
             switchCameraButton.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 10),
@@ -357,7 +391,6 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
         ])
         switchCameraButton.addTarget(self, action: #selector(switchCamera), for: .touchUpInside)
         
-        // 소리 토글 버튼
         view.addSubview(soundToggleButton)
         NSLayoutConstraint.activate([
             soundToggleButton.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 10),
@@ -367,7 +400,6 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
         ])
         soundToggleButton.addTarget(self, action: #selector(toggleSound), for: .touchUpInside)
         
-        // 타이머 레이블
         view.addSubview(timerLabel)
         NSLayoutConstraint.activate([
             timerLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
@@ -376,7 +408,6 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
             timerLabel.heightAnchor.constraint(equalToConstant: 40)
         ])
         
-        // 피드백 메시지 레이블
         view.addSubview(feedbackMessageLabel)
         NSLayoutConstraint.activate([
             feedbackMessageLabel.topAnchor.constraint(equalTo: timerLabel.bottomAnchor, constant: 10),
@@ -385,29 +416,24 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
             feedbackMessageLabel.heightAnchor.constraint(equalToConstant: 20)
         ])
         
-        // 카메라 뷰
         view.addSubview(cameraView)
         NSLayoutConstraint.activate([
             cameraView.topAnchor.constraint(equalTo: feedbackMessageLabel.bottomAnchor, constant: 10),
-            cameraView.leadingAnchor.constraint(equalTo: view.leadingAnchor), // 좌우 여백 제거
+            cameraView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             cameraView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             cameraView.heightAnchor.constraint(equalTo: view.heightAnchor, multiplier: 0.6)
         ])
         
-        // 정보 스택뷰 구성
-        // 정보 제목 스택뷰
         infoTitlesStackView.addArrangedSubview(repetitionsTitleLabel)
         infoTitlesStackView.addArrangedSubview(setsTitleLabel)
         infoTitlesStackView.addArrangedSubview(averageSpeedTitleLabel)
         infoTitlesStackView.addArrangedSubview(caloriesTitleLabel)
         
-        // 정보 값 스택뷰
         infoValuesStackView.addArrangedSubview(repetitionsValueLabel)
         infoValuesStackView.addArrangedSubview(setsValueLabel)
         infoValuesStackView.addArrangedSubview(averageSpeedValueLabel)
         infoValuesStackView.addArrangedSubview(caloriesValueLabel)
         
-        // 정보 전체 스택뷰에 추가
         infoStackView.addArrangedSubview(infoTitlesStackView)
         infoStackView.addArrangedSubview(infoValuesStackView)
         
@@ -419,7 +445,6 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
             infoStackView.heightAnchor.constraint(equalToConstant: 60)
         ])
         
-        // 하단 버튼들 - 가로로 길게 배치
         let buttonsStackView = UIStackView(arrangedSubviews: [pauseResumeButton, stopButton])
         buttonsStackView.axis = .horizontal
         buttonsStackView.spacing = 20
@@ -437,7 +462,6 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
         pauseResumeButton.addTarget(self, action: #selector(togglePauseResume), for: .touchUpInside)
         stopButton.addTarget(self, action: #selector(stopExercise), for: .touchUpInside)
         
-        // 카운트다운 레이블
         view.addSubview(countdownLabel)
         NSLayoutConstraint.activate([
             countdownLabel.centerXAnchor.constraint(equalTo: cameraView.centerXAnchor),
@@ -449,12 +473,12 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
     
     // MARK: - 소리 토글 버튼 설정
     func setupSoundToggle() {
-        // 초기 아이콘 설정
         updateSoundToggleButton()
     }
     
     @objc func toggleSound() {
         isSpeechEnabled.toggle()
+        UserDefaults.standard.set(isSpeechEnabled, forKey: "isSpeechEnabled")
         updateSoundToggleButton()
     }
     
@@ -466,7 +490,11 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
     
     // MARK: - 카운트다운 프로그레스 바 설정
     func setupCountdownProgress() {
-        let circularPath = UIBezierPath(arcCenter: CGPoint(x: 100, y: 100), radius: 90, startAngle: -CGFloat.pi / 2, endAngle: 1.5 * CGFloat.pi, clockwise: true)
+        let circularPath = UIBezierPath(arcCenter: CGPoint(x: 100, y: 100),
+                                        radius: 90,
+                                        startAngle: -CGFloat.pi / 2,
+                                        endAngle: 1.5 * CGFloat.pi,
+                                        clockwise: true)
         
         countdownProgressLayer.path = circularPath.cgPath
         countdownProgressLayer.strokeColor = UIColor.systemGreen.cgColor
@@ -498,12 +526,10 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
                 
                 self.previewLayer = AVCaptureVideoPreviewLayer(session: self.captureSession)
                 self.previewLayer.videoGravity = .resizeAspectFill
-                self.previewLayer.frame = self.cameraView.bounds // 초기 설정, 실제 프레임은 viewDidLayoutSubviews에서 업데이트
-                
+                self.previewLayer.frame = self.cameraView.bounds
                 self.cameraView.layer.insertSublayer(self.previewLayer, at: 0)
                 
-                // 오버레이 레이어 설정
-                self.overlayLayer.strokeColor = UIColor.orange.cgColor // 기본 색상: 오렌지색
+                self.overlayLayer.strokeColor = UIColor.orange.cgColor
                 self.overlayLayer.lineWidth = 2.0
                 self.overlayLayer.fillColor = UIColor.clear.cgColor
                 self.cameraView.layer.addSublayer(self.overlayLayer)
@@ -563,7 +589,8 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
             case .pushUp:
                 feedbackMessageLabel.text = "푸쉬업 모드로 시작하세요!"
             case .pullUp:
-                feedbackMessageLabel.text = "턱걸이 모드로 시작하세요!"
+                // pull-up 모드의 경우 카운트다운 후 "봉을 잡으세요!"가 나오도록 startCountdown에서 처리됨
+                feedbackMessageLabel.text = "봉을 잡으세요!"
             case .none:
                 feedbackMessageLabel.text = "운동 모드를 선택하세요."
             }
@@ -572,13 +599,11 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
     
     // MARK: - 앱 라이프사이클 핸들러
     @objc func appWillResignActive() {
-        // 앱이 비활성화될 때 타이머 일시 중지
         stopCalorieTimer()
         mainTimer?.invalidate()
     }
     
     @objc func appDidBecomeActive() {
-        // 앱이 활성화될 때 타이머 재개
         if captureSession.isRunning && !exerciseCompleted {
             startCalorieTimer()
             startMainTimer()
@@ -592,10 +617,9 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
             return
         }
         
-        // 운동 시작 초기화
         currentSet = 1
         repetitions = 0
-        sessionStartTime = nil // 세션 시작 시간을 카운트다운 후에 설정
+        sessionStartTime = nil
         setStartTime = Date()
         setSummaries.removeAll()
         hasStartedExercise = false
@@ -605,24 +629,23 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
         totalRepetitionTime = 0.0
         repetitionCountForAverage = 0
         
-        exerciseStartTime = nil // 운동 시작 시간을 카운트다운 후에 설정
+        exerciseStartTime = nil
         
-        // 정보 레이블 초기화
+        // pull-up 모드일 경우 관련 상태 초기화
+        if selectedMode == .pullUp {
+            isBarGrabbed = false
+            barGrabStartTime = nil
+            barReleaseStartTime = nil
+        }
+        
         repetitionsValueLabel.text = "0 / \(targetRepetitions)"
         setsValueLabel.text = "\(currentSet) / \(targetSets)"
         averageSpeedValueLabel.text = "0.0초"
         caloriesValueLabel.text = "0.00 kcal"
-        
-        // 타이머 라벨 초기화
         timerLabel.text = "00:00"
-        
-        // 피드백 메시지 초기화
         feedbackMessageLabel.text = "운동을 시작합니다..."
-        
-        // 오버레이 색상 초기화
         overlayLayer.strokeColor = UIColor.orange.cgColor
         
-        // 카운트다운 시작
         startCountdown()
     }
     
@@ -633,17 +656,13 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
         countdownLabel.isHidden = false
         countdownProgressLayer.strokeEnd = 0
         
-        // 프로그레스 애니메이션
         let progressAnimation = CABasicAnimation(keyPath: "strokeEnd")
         progressAnimation.fromValue = 0
         progressAnimation.toValue = 1
         progressAnimation.duration = 3.0
         countdownProgressLayer.add(progressAnimation, forKey: "progressAnimation")
-        
-        // 프로그레스 업데이트 (strokeEnd을 실제로 업데이트)
         countdownProgressLayer.strokeEnd = 1
         
-        // 기존 Timer를 countdownTimer에 할당
         countdownTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
             guard let self = self else { return }
             countdown -= 1
@@ -655,22 +674,21 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
                 self.countdownLabel.isHidden = true
                 self.captureSession.startRunning()
                 self.setupExerciseMode()
-                self.feedbackMessageLabel.text = "운동을 시작하세요!"
-                
-                // 칼로리 타이머 시작
+                // pull-up 모드인 경우 "봉을 잡으세요!" 문구 출력
+                if self.selectedMode == .pullUp {
+                    self.feedbackMessageLabel.text = "봉을 잡으세요!"
+                } else {
+                    self.feedbackMessageLabel.text = "운동을 시작하세요!"
+                }
                 self.startCalorieTimer()
-                
-                // 운동 타이머 시작
                 self.startMainTimer()
             }
         }
     }
-    //MARK: - 운동 데이터 저장
+    
+    // MARK: - 운동 데이터 저장
     func saveExerciseSummary() {
-        // 운동 종료 시간
         let endTime = Date()
-        
-        // 운동 종류
         let exerciseName: String
         switch selectedMode {
         case .squat: exerciseName = "스쿼트"
@@ -679,19 +697,17 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
         case .none: exerciseName = "선택되지 않음"
         }
         
-        // 운동 요약 데이터 가져오기
         let summary: [String: Any] = [
-            "date": endTime,                                  // 운동 종료 시간
-            "exerciseType": exerciseName,                     // 운동 종류
-            "sets": currentSet,                               // 총 세트 수
-            "reps": repetitions,                              // 총 반복 횟수
-            "calories": caloriesBurned,                       // 소모 칼로리
-            "duration": endTime.timeIntervalSince(exerciseStartTime ?? endTime), // 운동 시간 (초)
-            "averageSpeed": repetitionCountForAverage > 0 ? totalRepetitionTime / Double(repetitionCountForAverage) : 0.0, // 평균 속도
-            "restTime": restTime                              // 세트 간 쉬는 시간
+            "date": endTime,
+            "exerciseType": exerciseName,
+            "sets": currentSet,
+            "reps": repetitions,
+            "calories": caloriesBurned,
+            "duration": endTime.timeIntervalSince(exerciseStartTime ?? endTime),
+            "averageSpeed": repetitionCountForAverage > 0 ? totalRepetitionTime / Double(repetitionCountForAverage) : 0.0,
+            "restTime": restTime
         ]
         
-        // UserDefaults를 통해 저장
         var exerciseData = UserDefaults.standard.array(forKey: "exerciseSummaries") as? [[String: Any]] ?? []
         exerciseData.append(summary)
         UserDefaults.standard.setValue(exerciseData, forKey: "exerciseSummaries")
@@ -699,56 +715,35 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
     
     // MARK: - 운동 정지 액션
     @objc func stopExercise() {
-        // 캡처 세션 정지
         captureSession.stopRunning()
-        
-        // 칼로리 타이머 정지
         stopCalorieTimer()
-        
-        // 메인 타이머 정지
         mainTimer?.invalidate()
         mainTimer = nil
-        
-        // 카운트다운 타이머 정지
         countdownTimer?.invalidate()
         countdownTimer = nil
-        
-        // 카메라 뷰 숨기기
         cameraView.isHidden = true
-        
-        // 피드백 메시지 업데이트
         feedbackMessageLabel.text = "운동 종료"
         
-        // 운동 요약 표시
-        displaySessionSummary()
+        // 운동 종료 시 화면 자동 잠금 활성화
+        UIApplication.shared.isIdleTimerDisabled = false
         
-        //운동 데이터 저장ㅋ
+        displaySessionSummary()
         saveExerciseSummary()
     }
     
     // MARK: - 일시정지 및 재시작 액션
     @objc func togglePauseResume() {
         if captureSession.isRunning {
-            // 일시정지
             captureSession.stopRunning()
             stopCalorieTimer()
             mainTimer?.invalidate()
-            
-            // 버튼 제목 변경
             pauseResumeButton.setTitle("재시작", for: .normal)
-            
-            // 피드백 메시지 업데이트
             feedbackMessageLabel.text = "운동이 일시정지되었습니다."
         } else {
-            // 재시작
             captureSession.startRunning()
             startCalorieTimer()
             startMainTimer()
-            
-            // 버튼 제목 변경
             pauseResumeButton.setTitle("일시정지", for: .normal)
-            
-            // 피드백 메시지 업데이트
             feedbackMessageLabel.text = "운동을 재개했습니다."
         }
     }
@@ -759,180 +754,60 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
         configureCamera(position: newPosition)
     }
     
-    
-    // MARK: - 운동 요약 표시 메서드
+    // MARK: - 운동 기록 표시 메서드 (수정된 버전)
     func displaySessionSummary() {
-        // 운동 종료 시간
         let exerciseEndTime = Date()
-        
-        // 총 지속 시간 계산 (운동 시작부터 종료까지)
         let totalDuration = exerciseStartTime != nil ? exerciseEndTime.timeIntervalSince(exerciseStartTime!) : 0.0
-        let totalTimeText = "\(Int(totalDuration / 60))분 \(Int(totalDuration) % 60)초"
-        
-        // 회당 평균 속도 계산 (총 반복 시간을 반복 횟수로 나눔)
         let averageSpeed: Double = repetitionCountForAverage > 0 ? totalRepetitionTime / Double(repetitionCountForAverage) : 0.0
-        let averageSpeedText = String(format: "%.1f초", averageSpeed)
         
-        // 운동 요약 내용
-        let totalRepsText = "\(repetitions)회"
-        let totalCaloriesText = String(format: "%.2f kcal", caloriesBurned) // 소수점 두 자리 표시
+        let record: [String: Any] = [
+            "date": exerciseEndTime,
+            "exerciseType": {
+                switch selectedMode {
+                case .squat:
+                    return "스쿼트"
+                case .pushUp:
+                    return "푸쉬업"
+                case .pullUp:
+                    return "턱걸이"
+                default:
+                    return "선택되지 않음"
+                }
+            }(),
+            "sets": currentSet,
+            "reps": repetitions,
+            "duration": totalDuration,
+            "averageSpeed": averageSpeed,
+            "calories": caloriesBurned
+        ]
         
-        // 현재 시간 (운동 종료 시간)
-        let formatter = DateFormatter()
-        formatter.dateFormat = "a h:mm" // "오전 6:34" 형식
-        let currentTime = formatter.string(from: exerciseEndTime)
-        
-        // 모달 뷰컨트롤러 생성
-        let summaryVC = UIViewController()
+        let summaryVC = CustomExerciseRecordSummaryViewController()
+        summaryVC.record = record
         summaryVC.modalPresentationStyle = .pageSheet
-        summaryVC.view.backgroundColor = .systemBackground
-        
-        // 모달 시트 스타일 설정 (iOS 15+)
         if let sheet = summaryVC.sheetPresentationController {
-            sheet.detents = [.medium()] // 모달 크기 변경: .medium() 사용
+            sheet.detents = [.medium()]
             sheet.prefersGrabberVisible = true
             sheet.preferredCornerRadius = 20
         }
         
-        // preferredContentSize 설정 (약간 크기를 늘림)
-        summaryVC.preferredContentSize = CGSize(width: view.bounds.width * 0.9, height: view.bounds.height * 0.5)
-        
-        // 헤더: 운동 완료 시간 및 메시지
-        let headerLabel = UILabel()
-        headerLabel.text = "운동 요약"
-        headerLabel.font = UIFont.boldSystemFont(ofSize: 24)
-        headerLabel.textAlignment = .center
-        headerLabel.textColor = .systemGray
-        
-        let timeLabel = UILabel()
-        timeLabel.text = "오늘 \(currentTime)"
-        timeLabel.font = UIFont.systemFont(ofSize: 16)
-        timeLabel.textAlignment = .center
-        timeLabel.textColor = .systemGray
-        
-        // 운동 종류 문자열 변환
-        let exerciseName: String
-        switch selectedMode {
-        case .squat:
-            exerciseName = "스쿼트"
-        case .pushUp:
-            exerciseName = "푸쉬업"
-        case .pullUp:
-            exerciseName = "턱걸이"
-        case .none:
-            exerciseName = "선택되지 않음"
+        summaryVC.onDismiss = { [weak self] in
+            self?.dismissSummary()
         }
         
-        // 총 세트수 문자열
-        let totalSetsText = "\(currentSet)세트"
-        
-        // 요약 항목 스택뷰 준비
-        var items = [
-            ("figure.walk", "운동 종류", exerciseName),
-            ("checkmark", "반복 횟수", totalRepsText),
-            ("checkmark.seal", "세트수", totalSetsText),
-            ("clock", "지속 시간", totalTimeText),
-            ("bolt", "회당 평균 속도", averageSpeedText),
-            ("flame", "소모 칼로리", totalCaloriesText)
-        ]
-        
-        // 세트간 쉬는 시간 조건부 추가
-        if currentSet > 1 {
-            let restTimeText = "\(restTime)초"
-            items.insert(("timer", "세트간 쉬는 시간", restTimeText), at: 2) // 세 번째 항목으로 삽입
-        }
-        
-        let summaryStackView = UIStackView()
-        summaryStackView.axis = .vertical
-        summaryStackView.spacing = 15 // 약간의 여유 공간 추가
-        summaryStackView.alignment = .fill
-        
-        for (iconName, title, value) in items {
-            let itemStackView = UIStackView()
-            itemStackView.axis = .horizontal
-            itemStackView.spacing = 10
-            itemStackView.alignment = .center
-            
-            if let image = UIImage(systemName: iconName) {
-                let iconImageView = UIImageView(image: image)
-                iconImageView.tintColor = UIColor.systemGreen
-                iconImageView.contentMode = .scaleAspectFit
-                iconImageView.translatesAutoresizingMaskIntoConstraints = false
-                iconImageView.widthAnchor.constraint(equalToConstant: 24).isActive = true
-                iconImageView.heightAnchor.constraint(equalToConstant: 24).isActive = true
-                
-                itemStackView.addArrangedSubview(iconImageView)
-            }
-            
-            let titleLabel = UILabel()
-            titleLabel.text = title
-            titleLabel.font = UIFont.systemFont(ofSize: 18)
-            titleLabel.textColor = UIColor.systemGray
-            
-            let valueLabel = UILabel()
-            valueLabel.text = value
-            valueLabel.font = UIFont.boldSystemFont(ofSize: 18)
-            valueLabel.textAlignment = .right
-            valueLabel.translatesAutoresizingMaskIntoConstraints = false
-            valueLabel.setContentHuggingPriority(.defaultLow, for: .horizontal)
-            valueLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
-            
-            itemStackView.addArrangedSubview(titleLabel)
-            itemStackView.addArrangedSubview(valueLabel)
-            summaryStackView.addArrangedSubview(itemStackView)
-        }
-        
-        // 확인 버튼
-        let confirmButton = UIButton(type: .system)
-        confirmButton.setTitle("확인", for: .normal)
-        confirmButton.titleLabel?.font = UIFont.boldSystemFont(ofSize: 18)
-        confirmButton.setTitleColor(.white, for: .normal)
-        confirmButton.backgroundColor = UIColor.systemGreen
-        confirmButton.layer.cornerRadius = 10
-        confirmButton.heightAnchor.constraint(equalToConstant: 44).isActive = true
-        confirmButton.addTarget(self, action: #selector(dismissSummary), for: .touchUpInside)
-        
-        // 메인 스택뷰
-        let mainStackView = UIStackView(arrangedSubviews: [headerLabel, timeLabel, summaryStackView, confirmButton])
-        mainStackView.axis = .vertical
-        mainStackView.spacing = 20
-        mainStackView.alignment = .fill
-        mainStackView.translatesAutoresizingMaskIntoConstraints = false
-        
-        summaryVC.view.addSubview(mainStackView)
-        
-        // 레이아웃 설정
-        NSLayoutConstraint.activate([
-            mainStackView.leadingAnchor.constraint(equalTo: summaryVC.view.leadingAnchor, constant: 20),
-            mainStackView.trailingAnchor.constraint(equalTo: summaryVC.view.trailingAnchor, constant: -20),
-            mainStackView.centerYAnchor.constraint(equalTo: summaryVC.view.centerYAnchor)
-        ])
-        
-        // 운동 종료 시 카메라 뷰 숨기기 및 피드백 메시지 업데이트
         cameraView.isHidden = true
         feedbackMessageLabel.text = "운동 종료"
-        
-        // 모달 표시
         present(summaryVC, animated: true, completion: nil)
     }
-
+    
     // MARK: - 모달 닫기 및 홈화면으로 전환 메서드
     @objc func dismissSummary() {
-        dismiss(animated: true) { [weak self] in
-            guard let self = self else { return }
-            // 네비게이션 컨트롤러가 있는지 확인
-            if let navigationController = self.navigationController {
-                // 루트 뷰컨트롤러로 돌아감 (홈화면)
-                navigationController.popToRootViewController(animated: true)
-            } else {
-                // 네비게이션 컨트롤러가 없으면 현재 뷰컨트롤러 닫기
-                self.dismiss(animated: true, completion: nil)
-            }
-            
-            // 카메라 뷰 숨기기 및 피드백 메시지 업데이트
-            self.cameraView.isHidden = true
-            self.feedbackMessageLabel.text = "운동 종료"
+        if let navigationController = self.navigationController {
+            navigationController.popToRootViewController(animated: true)
+        } else {
+            self.dismiss(animated: true, completion: nil)
         }
+        cameraView.isHidden = true
+        feedbackMessageLabel.text = "운동 종료"
     }
     
     // MARK: - 피드백 메시지 레이블 업데이트 메서드
@@ -942,33 +817,25 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
     
     // MARK: - BMR 계산 메서드 (Harris-Benedict Equation)
     func calculateBMR(gender: Int, age: Int, height: Double, weight: Double) -> Double {
-        // gender: 0 = 남성, 1 = 여성
         if gender == 0 {
-            // 남성 BMR = 88.362 + (13.397 * 체중 kg) + (4.799 * 키 cm) - (5.677 * 나이)
             return 88.362 + (13.397 * weight) + (4.799 * height) - (5.677 * Double(age))
         } else {
-            // 여성 BMR = 447.593 + (9.247 * 체중 kg) + (3.098 * 키 cm) - (4.330 * 나이)
             return 447.593 + (9.247 * weight) + (3.098 * height) - (4.330 * Double(age))
         }
     }
     
     // MARK: - 칼로리 계산 메서드 (BMR 및 MET 기반)
     func calculateCaloriesBurned(exerciseMode: ExerciseMode, activeExerciseTime: TimeInterval) -> Double {
-        // 사용자 정보 불러오기
         let weight = UserDefaults.standard.double(forKey: "weight")
         let height = UserDefaults.standard.double(forKey: "height")
         let age = UserDefaults.standard.integer(forKey: "age")
-        let genderIndex = UserDefaults.standard.integer(forKey: "gender") // 0: 남성, 1: 여성
+        let genderIndex = UserDefaults.standard.integer(forKey: "gender")
         
-        // 사용자 정보 유효성 검사
         guard weight > 0, height > 0, age > 0, (genderIndex == 0 || genderIndex == 1) else {
             return 0.0
         }
         
-        // BMR 계산
         let bmr = calculateBMR(gender: genderIndex, age: age, height: height, weight: weight)
-        
-        // MET 값 설정
         let mets: Double
         switch exerciseMode {
         case .squat:
@@ -981,16 +848,13 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
             mets = 0.0
         }
         
-        // 운동 시간 계산 (초 단위에서 분 단위로 변환)
         let activeExerciseTimeMinutes = activeExerciseTime / 60.0
-        
-        // MET * (BMR / 1440) * 운동 시간(분) = 소모 칼로리
         let caloriesBurned = mets * (bmr / 1440.0) * activeExerciseTimeMinutes
         
         return caloriesBurned
     }
     
-    // MARK: - 반복 카운트 메서드
+    // MARK: - 반복 카운트 메서드 (기존 기준 적용)
     func countRepetition() {
         let currentTime = Date()
         
@@ -1004,15 +868,13 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
         
         repetitions += 1
         
+        // 진동 및 효과음 재생
         AudioServicesPlaySystemSound(1104)
         
-        // 칼로리 소모 업데이트
         caloriesBurned = calculateCaloriesBurned(exerciseMode: selectedMode, activeExerciseTime: activeExerciseTime)
-        caloriesValueLabel.text = String(format: "%.2f kcal", caloriesBurned) // 소수점 두 자리 표시
-        
+        caloriesValueLabel.text = String(format: "%.2f kcal", caloriesBurned)
         repetitionsValueLabel.text = "\(repetitions) / \(targetRepetitions)"
         
-        // 평균 속도 실시간 업데이트
         if repetitionCountForAverage > 0 {
             let averageSpeed = totalRepetitionTime / Double(repetitionCountForAverage)
             averageSpeedValueLabel.text = String(format: "%.1f초", averageSpeed)
@@ -1022,23 +884,16 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
             completeSet()
         }
         
-        // 타이머 레이블 애니메이션 추가
         animateTimerLabel()
-        
-        // 타이머 라벨 배경을 초록색으로 변경
         timerLabel.backgroundColor = .systemGreen
-        
-        // 오버레이 색상 변경
         overlayLayer.strokeColor = UIColor.systemGreen.cgColor
         
-        // 0.5초 후 다시 빨간색으로 변경
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             self.timerLabel.backgroundColor = .red
             self.overlayLayer.strokeColor = UIColor.orange.cgColor
-            
         }
         
-        // AI 음성 피드백
+        // 음성 피드백
         speakNumber(count: repetitions)
     }
     
@@ -1055,57 +910,69 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
                        })
     }
     
-    // MARK: - 숫자 음성 피드백 메서드
+    // MARK: - 숫자 음성 피드백 메서드 (0 ~ 50까지 지원)
     func speakNumber(count: Int) {
         guard isSpeechEnabled else { return }
         
-        let koreanNumbers = ["영", "하나", "둘", "셋", "넷", "다섯", "여섯", "일곱", "여덟", "아홉", "열",
-                             "열하나", "열둘", "열셋", "열넷", "열다섯", "열여섯", "열일곱", "열여덟", "열아홉", "스물"]
+        let numberString = koreanNumber(for: count)
+        let utterance = AVSpeechUtterance(string: numberString)
+        utterance.voice = AVSpeechSynthesisVoice(language: "ko-KR")
+        speechSynthesizer.speak(utterance)
+    }
+    
+    /// 주어진 정수를 한글 숫자 문자열로 변환 (0 ~ 50까지 지원)
+    func koreanNumber(for count: Int) -> String {
+        if count < 0 { return "" }
+        if count == 0 { return "영" }
         
-        if count <= koreanNumbers.count && count >= 0 {
-            let numberString = koreanNumbers[count]
-            let utterance = AVSpeechUtterance(string: numberString)
-            utterance.voice = AVSpeechSynthesisVoice(language: "ko-KR")
-            speechSynthesizer.speak(utterance)
+        let tensWords = ["", "열", "스물", "서른", "마흔", "쉰"]
+        let onesWords = ["", "하나", "둘", "셋", "넷", "다섯", "여섯", "일곱", "여덟", "아홉"]
+        
+        let tens = count / 10
+        let ones = count % 10
+        
+        if ones == 0 {
+            if tens < tensWords.count {
+                return tensWords[tens]
+            } else {
+                return "\(count)"
+            }
+        } else {
+            if tens < tensWords.count && ones < onesWords.count {
+                return tensWords[tens] + onesWords[ones]
+            } else {
+                return "\(count)"
+            }
         }
     }
     
     // MARK: - 라벨 색상 업데이트 메서드
     func updateInfoLabelsColor(isActive: Bool) {
-        // 정보 제목은 회색으로, 정보 값은 흰색으로 유지
-        // 별도의 색상 변경이 필요 없으므로 빈 메서드로 유지
+        // 정보 제목은 회색, 정보 값은 흰색 (변경 없음)
     }
     
     // MARK: - 휴식 타이머 & 다음 세트 시작
     func startRestTimer() {
         remainingRestTime = restTime
         updateRestCountdown()
-        
-        // 휴식 시간 동안 카메라 뷰를 숨기고 피드백 메시지 설정
         cameraView.isHidden = true
         feedbackMessageLabel.text = "휴식 시간 시작"
         
-        // 카운트다운 레이블과 프로그레스 바 표시
         countdownLabel.text = "\(remainingRestTime)"
         countdownLabel.isHidden = false
         countdownProgressLayer.strokeEnd = 0
         
-        // 프로그레스 애니메이션 설정
         let progressAnimation = CABasicAnimation(keyPath: "strokeEnd")
         progressAnimation.fromValue = 0
         progressAnimation.toValue = 1
         progressAnimation.duration = TimeInterval(restTime)
         countdownProgressLayer.add(progressAnimation, forKey: "restProgressAnimation")
-        
-        // 프로그레스 바 실제 업데이트
         countdownProgressLayer.strokeEnd = 1
         
-        // 휴식 타이머 시작
         restTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] timer in
             guard let self = self else { return }
             self.remainingRestTime -= 1
             self.updateRestCountdown()
-            
             if self.remainingRestTime <= 0 {
                 timer.invalidate()
                 self.feedbackMessageLabel.text = "휴식 시간 종료"
@@ -1113,12 +980,11 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
             }
         }
     }
-
+    
     func updateRestCountdown() {
-        // Modified: 쉬는 시간 동안 카운트다운 레이블 업데이트
         countdownLabel.text = "\(remainingRestTime)"
     }
-
+    
     func startNextSet() {
         currentSet += 1
         repetitions = 0
@@ -1132,50 +998,52 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
         if currentSet > targetSets {
             stopExercise()
         } else {
-            // Modified: 카메라 뷰 다시 보이기
             cameraView.isHidden = false
-            
-            // Modified: 카운트다운 시작 제거하고 즉시 운동 인식 시작
             setupExerciseMode()
-            feedbackMessageLabel.text = "운동을 시작하세요!"
-            
-            // Modified: 운동 인식을 시작하기 위해 캡처 세션 실행
+            // pull-up 모드일 경우 상태 초기화 후 "봉을 잡으세요!" 표시
+            if selectedMode == .pullUp {
+                isBarGrabbed = false
+                barGrabStartTime = nil
+                barReleaseStartTime = nil
+                feedbackMessageLabel.text = "봉을 잡으세요!"
+            } else {
+                feedbackMessageLabel.text = "운동을 시작하세요!"
+            }
             captureSession.startRunning()
-            
-            // Modified: 휴식 시간 후 검은 배경 해제 및 카운트다운 숨기기
             DispatchQueue.main.async {
-                self.cameraView.backgroundColor = .clear // 기본 색상으로 설정
+                self.cameraView.backgroundColor = .clear
                 self.countdownLabel.isHidden = true
                 self.countdownProgressLayer.strokeEnd = 0
                 self.overlayLayer.strokeColor = UIColor.orange.cgColor
             }
-            
-            // 칼로리 타이머와 운동 타이머 시작
-            startCalorieTimer()
-            startMainTimer()
+            self.startCalorieTimer()
+            self.startMainTimer()
         }
     }
+    
     // MARK: - Complete Set
     func completeSet() {
         let elapsedTime = Date().timeIntervalSince(setStartTime ?? Date())
         setSummaries.append("세트 \(currentSet): \(repetitions)회, 시간: \(Int(elapsedTime))초, 휴식: \(restTime)초")
-
+        
         if currentSet >= targetSets {
             stopExercise()
         } else {
             feedbackMessageLabel.text = "휴식 시간 시작"
             captureSession.stopRunning()
-            stopCalorieTimer() // 휴식 중 칼로리 타이머 정지
+            stopCalorieTimer()
             startRestTimer()
         }
     }
     
-    // MARK: - 각 운동 분석 메서드
+    // MARK: - 운동 측정 메소드
+    // 스쿼트
     func analyzeSquat(results: VNHumanBodyPoseObservation) {
         guard let recognizedPoints = try? results.recognizedPoints(.all) else { return }
-        
-        if let leftKnee = recognizedPoints[.leftKnee], let rightKnee = recognizedPoints[.rightKnee],
-           let leftHip = recognizedPoints[.leftHip], let rightHip = recognizedPoints[.rightHip] {
+        if let leftKnee = recognizedPoints[.leftKnee],
+           let rightKnee = recognizedPoints[.rightKnee],
+           let leftHip = recognizedPoints[.leftHip],
+           let rightHip = recognizedPoints[.rightHip] {
             
             let leftKneeAngle = calculateAngle(point1: leftHip, point2: leftKnee)
             let rightKneeAngle = calculateAngle(point1: rightHip, point2: rightKnee)
@@ -1194,7 +1062,9 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
                     if isPositionCorrect {
                         let holdDuration = Date().timeIntervalSince(holdStartTime ?? Date())
                         if holdDuration >= 1.0 {
-                            AudioServicesPlaySystemSound(kSystemSoundID_Vibrate)
+                            if vibrationEnabled {
+                                AudioServicesPlaySystemSound(kSystemSoundID_Vibrate)
+                            }
                             countRepetition()
                         }
                         isPositionCorrect = false
@@ -1204,11 +1074,13 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
         }
     }
     
+    // 푸쉬업
     func analyzePushUp(results: VNHumanBodyPoseObservation) {
         guard let recognizedPoints = try? results.recognizedPoints(.all) else { return }
-        
-        if let leftElbow = recognizedPoints[.leftElbow], let rightElbow = recognizedPoints[.rightElbow],
-           let leftShoulder = recognizedPoints[.leftShoulder], let rightShoulder = recognizedPoints[.rightShoulder] {
+        if let leftElbow = recognizedPoints[.leftElbow],
+           let rightElbow = recognizedPoints[.rightElbow],
+           let leftShoulder = recognizedPoints[.leftShoulder],
+           let rightShoulder = recognizedPoints[.rightShoulder] {
             
             let leftElbowAngle = calculateAngle(point1: leftShoulder, point2: leftElbow)
             let rightElbowAngle = calculateAngle(point1: rightShoulder, point2: rightElbow)
@@ -1222,7 +1094,9 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
                 if isPositionCorrect {
                     let holdDuration = Date().timeIntervalSince(holdStartTime ?? Date())
                     if holdDuration >= 1.0 {
-                        AudioServicesPlaySystemSound(kSystemSoundID_Vibrate)
+                        if vibrationEnabled {
+                            AudioServicesPlaySystemSound(kSystemSoundID_Vibrate)
+                        }
                         countRepetition()
                     }
                     isPositionCorrect = false
@@ -1231,13 +1105,34 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
         }
     }
     
+    // 턱걸이 – 조건
+    // ① 몸통(어깨, 엉덩이) 포인트가 전혀 인식되지 않거나 신뢰도가 낮으면 "위치를 재조정 해주세요!" 출력 후 카운트 중단
+    // ② 봉을 잡기 전에는 "봉을 잡으세요!" 출력 후, 0.7초 이상 손목이 어깨보다 위에 있으면 isBarGrabbed를 true로 전환하여 "턱걸이를 시작하세요!" 출력
+    // ③ 봉이 잡힌 상태에서 손목이 어깨 미만(봉 놓음)이 1.5초 이상 유지되면 isBarGrabbed를 false로 전환하고 "봉을 잡으세요!" 출력, 카운트 중단
+    // ④ 봉이 잡힌 상태에서는 기존의 카운트 기준(손목이 어깨의 평균 y 좌표에서 50포인트 이상 높은 상태에서 release 시 바로 countRepetition())을 적용하며,
+    //     팔꿈치 하강 속도가 너무 빠르면(임계치 초과 시) countRepetition()을 호출하지 않음.
     func analyzePullUp(results: VNHumanBodyPoseObservation) {
         guard let recognizedPoints = try? results.recognizedPoints(.all) else { return }
         
+        // 상체(어깨, 손목) 포인트 검사
         guard let leftShoulder = recognizedPoints[.leftShoulder],
               let rightShoulder = recognizedPoints[.rightShoulder],
               let leftWrist = recognizedPoints[.leftWrist],
-              let rightWrist = recognizedPoints[.rightWrist] else { return }
+              let rightWrist = recognizedPoints[.rightWrist] else {
+            DispatchQueue.main.async {
+                self.feedbackMessageLabel.text = "몸이 보이게 서주세요!"
+            }
+            return
+        }
+                
+        // 신뢰도 검사
+        if leftShoulder.confidence < 0.3 || rightShoulder.confidence < 0.3 ||
+           leftWrist.confidence < 0.3 || rightWrist.confidence < 0.3 {
+            DispatchQueue.main.async {
+                self.feedbackMessageLabel.text = "위치를 재조정 해주세요!"
+            }
+            return
+        }
         
         let leftShoulderPos = previewLayer.layerPointConverted(fromCaptureDevicePoint: CGPoint(x: leftShoulder.location.x, y: 1 - leftShoulder.location.y))
         let rightShoulderPos = previewLayer.layerPointConverted(fromCaptureDevicePoint: CGPoint(x: rightShoulder.location.x, y: 1 - rightShoulder.location.y))
@@ -1246,9 +1141,74 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
         
         let shoulderY = (leftShoulderPos.y + rightShoulderPos.y) / 2
         let wristY = (leftWristPos.y + rightWristPos.y) / 2
+        // 수정: 손목 위치가 어깨의 평균 y 좌표에서 50포인트 이상 높은 경우 pull-up 포지션으로 판단
+        let isInPullUpPosition = wristY < shoulderY - 40
         
-        let isInPullUpPosition = wristY < shoulderY - 50
+        // 봉 잡기 전 단계
+        if !isBarGrabbed {
+            if isInPullUpPosition {
+                if barGrabStartTime == nil {
+                    barGrabStartTime = Date()
+                }
+                let duration = Date().timeIntervalSince(barGrabStartTime!)
+                if duration >= 0.7 {
+                    isBarGrabbed = true
+                    barGrabStartTime = nil
+                    DispatchQueue.main.async {
+                        self.feedbackMessageLabel.text = "턱걸이를 시작하세요!"
+                    }
+                } else {
+                    DispatchQueue.main.async {
+                        self.feedbackMessageLabel.text = "봉을 잡으세요!"
+                    }
+                }
+            } else {
+                barGrabStartTime = nil
+                DispatchQueue.main.async {
+                    self.feedbackMessageLabel.text = "봉을 잡으세요!"
+                }
+            }
+            return  // 봉 잡기 전에는 카운트 진행 안함.
+        }
         
+        // 봉이 잡힌 상태에서, 만약 손목이 내려가 봉 놓은 상태가 1.5초 이상 유지되면 봉 잡은 상태 해제
+        if isBarGrabbed && !isInPullUpPosition {
+            if barReleaseStartTime == nil {
+                barReleaseStartTime = Date()
+            }
+            let releaseDuration = Date().timeIntervalSince(barReleaseStartTime!)
+            if releaseDuration >= 1.5 {
+                isBarGrabbed = false
+                barReleaseStartTime = nil
+                DispatchQueue.main.async {
+                    self.feedbackMessageLabel.text = "봉을 잡으세요!"
+                }
+                return
+            }
+        } else {
+            // 손목이 다시 올리면 봉 놓은 타이머 초기화
+            barReleaseStartTime = nil
+        }
+        
+        // 업데이트: 손목의 y축 하강 속도 체크
+        let currentAverageWristY = wristY
+        let now = Date()
+        if let lastWrist = self.lastWristY, let lastUpdate = self.lastWristUpdateTime, !isInPullUpPosition, isPositionCorrect {
+            let dt = now.timeIntervalSince(lastUpdate)
+            let dropSpeed = (currentAverageWristY - lastWrist) / CGFloat(dt)
+            let speedThreshold: CGFloat = 30.0 // 초당 손목의 y축 이동범위 (사실상 턱걸이시 손목 움직임x, 약간의 오차범위라 생각)
+            if dropSpeed > speedThreshold {
+                isPositionCorrect = false
+                return
+            }
+        }
+        self.lastWristY = currentAverageWristY
+        self.lastWristUpdateTime = now
+        
+        // 봉이 잡힌 상태에서, 정상적인 턱걸이 동작 수행 (기존 기준 적용)
+        DispatchQueue.main.async {
+            self.feedbackMessageLabel.text = "턱걸이를 시작하세요!"
+        }
         if isInPullUpPosition {
             if !isPositionCorrect {
                 isPositionCorrect = true
@@ -1257,8 +1217,10 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
         } else {
             if isPositionCorrect {
                 let holdDuration = Date().timeIntervalSince(holdStartTime ?? Date())
-                if holdDuration >= 1.0 {
-                    AudioServicesPlaySystemSound(kSystemSoundID_Vibrate)
+                if holdDuration >= 0 {           // 정자세 유지 시간
+                    if vibrationEnabled {
+                        AudioServicesPlaySystemSound(kSystemSoundID_Vibrate)
+                    }
                     countRepetition()
                 }
                 isPositionCorrect = false
@@ -1266,17 +1228,30 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
         }
     }
     
+    // MARK: - 팔꿈치 각도 계산 함수 (코사인 법칙 사용)
+    func computeElbowAngle(shoulder: VNRecognizedPoint, elbow: VNRecognizedPoint, wrist: VNRecognizedPoint) -> CGFloat {
+        let shoulderPos = CGPoint(x: shoulder.location.x, y: shoulder.location.y)
+        let elbowPos = CGPoint(x: elbow.location.x, y: elbow.location.y)
+        let wristPos = CGPoint(x: wrist.location.x, y: wrist.location.y)
+        
+        let a = hypot(shoulderPos.x - elbowPos.x, shoulderPos.y - elbowPos.y)
+        let b = hypot(wristPos.x - elbowPos.x, wristPos.y - elbowPos.y)
+        let c = hypot(shoulderPos.x - wristPos.x, shoulderPos.y - wristPos.y)
+        if a == 0 || b == 0 { return 0 }
+        let cosineAngle = max(min((a*a + b*b - c*c) / (2 * a * b), 1), -1)
+        let angle = acos(cosineAngle)
+        return angle * 180 / .pi
+    }
+    
     // MARK: - Overlay Drawing
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
-        
         let requestHandler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, options: [:])
         do {
             try requestHandler.perform([bodyPoseRequest])
             if let results = bodyPoseRequest.results?.first {
                 DispatchQueue.main.async {
                     self.drawOverlay(for: results)
-                    
                     switch self.selectedMode {
                     case .squat:
                         self.analyzeSquat(results: results)
@@ -1290,13 +1265,12 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
                 }
             }
         } catch {
-            // 오류 발생 시 별도의 처리가 필요하다면 여기에 추가
+            // 오류 처리 (필요 시 추가)
         }
     }
     
     func drawOverlay(for observation: VNHumanBodyPoseObservation) {
         guard let recognizedPoints = try? observation.recognizedPoints(.all) else { return }
-        
         let path = UIBezierPath()
         overlayLayer.path = nil
         
@@ -1316,13 +1290,19 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
                 path.addLine(to: point2)
             }
         }
-
-        if let leftShoulder = recognizedPoints[.leftShoulder], let rightShoulder = recognizedPoints[.rightShoulder],
-           let leftElbow = recognizedPoints[.leftElbow], let rightElbow = recognizedPoints[.rightElbow],
-           let leftWrist = recognizedPoints[.leftWrist], let rightWrist = recognizedPoints[.rightWrist],
-           let leftHip = recognizedPoints[.leftHip], let rightHip = recognizedPoints[.rightHip],
-           let leftKnee = recognizedPoints[.leftKnee], let rightKnee = recognizedPoints[.rightKnee],
-           let leftAnkle = recognizedPoints[.leftAnkle], let rightAnkle = recognizedPoints[.rightAnkle] {
+        
+        if let leftShoulder = recognizedPoints[.leftShoulder],
+           let rightShoulder = recognizedPoints[.rightShoulder],
+           let leftElbow = recognizedPoints[.leftElbow],
+           let rightElbow = recognizedPoints[.rightElbow],
+           let leftWrist = recognizedPoints[.leftWrist],
+           let rightWrist = recognizedPoints[.rightWrist],
+           let leftHip = recognizedPoints[.leftHip],
+           let rightHip = recognizedPoints[.rightHip],
+           let leftKnee = recognizedPoints[.leftKnee],
+           let rightKnee = recognizedPoints[.rightKnee],
+           let leftAnkle = recognizedPoints[.leftAnkle],
+           let rightAnkle = recognizedPoints[.rightAnkle] {
             
             drawJoint(at: leftShoulder)
             drawJoint(at: rightShoulder)
@@ -1355,10 +1335,7 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
     
     // MARK: - Real-Time Calorie Calculation
     func startCalorieTimer() {
-        // 기존 타이머 취소
         calorieTimer?.cancel()
-        
-        // 새로운 타이머 생성
         calorieTimer = DispatchSource.makeTimerSource(queue: DispatchQueue.main)
         calorieTimer?.schedule(deadline: .now(), repeating: 1.0)
         calorieTimer?.setEventHandler { [weak self] in
@@ -1373,18 +1350,14 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
     }
     
     @objc func updateCalories() {
-        // 현재 운동 상태에 따라 activeExerciseTime 업데이트
         if isPositionCorrect {
             if let lastTime = lastActiveTime {
                 let elapsed = Date().timeIntervalSince(lastTime)
                 activeExerciseTime += elapsed
                 lastActiveTime = Date()
-                
-                // 칼로리 소모 업데이트
                 caloriesBurned = calculateCaloriesBurned(exerciseMode: selectedMode, activeExerciseTime: activeExerciseTime)
-                caloriesValueLabel.text = String(format: "%.2f kcal", caloriesBurned) // 소수점 두 자리 표시
+                caloriesValueLabel.text = String(format: "%.2f kcal", caloriesBurned)
             } else {
-                // 운동이 시작된 시점 기록
                 lastActiveTime = Date()
             }
         }
@@ -1392,15 +1365,10 @@ class a: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
     
     // MARK: - 메인 타이머 시작 메서드
     func startMainTimer() {
-        // 기존 타이머 정지
         mainTimer?.invalidate()
-        
-        // 운동 시작 시간을 기록
         if exerciseStartTime == nil {
             exerciseStartTime = Date()
         }
-        
-        // 새로운 타이머 시작
         mainTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
             guard let self = self, let startTime = self.exerciseStartTime else {
                 timer.invalidate()
