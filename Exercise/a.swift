@@ -2,6 +2,7 @@ import UIKit
 import Vision
 import AVFoundation
 import AudioToolbox
+import ReplayKit  // 화면 녹화를 위한 ReplayKit 임포트
 
 // MARK: - ExerciseViewController 클래스 정의 및 프로토콜 구현
 class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
@@ -76,6 +77,9 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
     var lastWristY: CGFloat?
     var lastWristUpdateTime: Date?
     
+    // MARK: - 녹화 미리보기 저장용 프로퍼티 추가
+    var recordedPreviewController: RPPreviewViewController?
+    
     // MARK: - UI Elements (프로그램 방식으로 정의)
     
     // 카메라 회전 버튼 (좌측 상단)
@@ -93,6 +97,17 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
     let soundToggleButton: UIButton = {
         let button = UIButton(type: .system)
         let image = UIImage(systemName: "speaker.wave.2.fill")
+        button.setImage(image, for: .normal)
+        button.tintColor = .white
+        button.layer.cornerRadius = 20
+        button.translatesAutoresizingMaskIntoConstraints = false
+        return button
+    }()
+    
+    // === 녹화 토글 버튼 추가 (우측 상단) ===
+    let recordToggleButton: UIButton = {
+        let button = UIButton(type: .system)
+        let image = UIImage(systemName: "record.circle")  // 녹화 전 상태 아이콘
         button.setImage(image, for: .normal)
         button.tintColor = .white
         button.layer.cornerRadius = 20
@@ -400,6 +415,16 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
         ])
         soundToggleButton.addTarget(self, action: #selector(toggleSound), for: .touchUpInside)
         
+        // === 녹화 버튼 UI 배치 ===
+        view.addSubview(recordToggleButton)
+        NSLayoutConstraint.activate([
+            recordToggleButton.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 10),
+            recordToggleButton.trailingAnchor.constraint(equalTo: soundToggleButton.leadingAnchor, constant: -20),
+            recordToggleButton.widthAnchor.constraint(equalToConstant: 40),
+            recordToggleButton.heightAnchor.constraint(equalToConstant: 40)
+        ])
+        recordToggleButton.addTarget(self, action: #selector(toggleRecording), for: .touchUpInside)
+        
         view.addSubview(timerLabel)
         NSLayoutConstraint.activate([
             timerLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
@@ -486,6 +511,39 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
         let imageName = isSpeechEnabled ? "speaker.wave.2.fill" : "speaker.slash.fill"
         let image = UIImage(systemName: imageName)
         soundToggleButton.setImage(image, for: .normal)
+    }
+    
+    // MARK: - 녹화 토글 메서드 (ReplayKit)
+    @objc func toggleRecording() {
+        let recorder = RPScreenRecorder.shared()
+        
+        if !recorder.isRecording {
+            recorder.startRecording(withMicrophoneEnabled: true) { error in
+                if let _ = error {
+                    // 에러 출력 제거
+                } else {
+                    DispatchQueue.main.async {
+                        let image = UIImage(systemName: "stop.circle")
+                        self.recordToggleButton.setImage(image, for: .normal)
+                    }
+                }
+            }
+        } else {
+            recorder.stopRecording { previewController, error in
+                if let _ = error {
+                    // 에러 출력 제거
+                }
+                DispatchQueue.main.async {
+                    let image = UIImage(systemName: "record.circle")
+                    self.recordToggleButton.setImage(image, for: .normal)
+                }
+                if let previewController = previewController {
+                    previewController.previewControllerDelegate = self
+                    // 미리보기를 즉시 표시하지 않고 저장
+                    self.recordedPreviewController = previewController
+                }
+            }
+        }
     }
     
     // MARK: - 카운트다운 프로그레스 바 설정
@@ -589,8 +647,7 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
             case .pushUp:
                 feedbackMessageLabel.text = "푸쉬업 모드로 시작하세요!"
             case .pullUp:
-                // pull-up 모드의 경우 카운트다운 후 "봉을 잡으세요!"가 나오도록 startCountdown에서 처리됨
-                feedbackMessageLabel.text = "봉을 잡으세요!"
+                feedbackMessageLabel.text = "봉을 잡으세요!"  // pull-up 모드의 경우 카운트다운 후 처리됨
             case .none:
                 feedbackMessageLabel.text = "운동 모드를 선택하세요."
             }
@@ -674,7 +731,6 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
                 self.countdownLabel.isHidden = true
                 self.captureSession.startRunning()
                 self.setupExerciseMode()
-                // pull-up 모드인 경우 "봉을 잡으세요!" 문구 출력
                 if self.selectedMode == .pullUp {
                     self.feedbackMessageLabel.text = "봉을 잡으세요!"
                 } else {
@@ -724,11 +780,32 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
         cameraView.isHidden = true
         feedbackMessageLabel.text = "운동 종료"
         
-        // 운동 종료 시 화면 자동 잠금 활성화
+        // 운동 종료 시 화면 자동 잠금 복원
         UIApplication.shared.isIdleTimerDisabled = false
         
-        displaySessionSummary()
-        saveExerciseSummary()
+        let recorder = RPScreenRecorder.shared()
+        if recorder.isRecording {
+            recorder.stopRecording { previewController, error in
+                if let _ = error {
+                    // 오류 로그 제거됨
+                }
+                DispatchQueue.main.async {
+                    let image = UIImage(systemName: "record.circle")
+                    self.recordToggleButton.setImage(image, for: .normal)
+                }
+                if let previewController = previewController {
+                    previewController.previewControllerDelegate = self
+                    // 미리보기를 즉시 표시하지 않고 저장
+                    self.recordedPreviewController = previewController
+                }
+                // 운동 기록 모달을 표시
+                self.displaySessionSummary()
+                self.saveExerciseSummary()
+            }
+        } else {
+            self.displaySessionSummary()
+            self.saveExerciseSummary()
+        }
     }
     
     // MARK: - 일시정지 및 재시작 액션
@@ -806,6 +883,20 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
         } else {
             self.dismiss(animated: true, completion: nil)
         }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            if let previewVC = self.recordedPreviewController {
+                if let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+                   let window = scene.windows.first(where: { $0.isKeyWindow }),
+                   let rootVC = window.rootViewController {
+                    rootVC.present(previewVC, animated: true, completion: nil)
+                } else {
+                    self.present(previewVC, animated: true, completion: nil)
+                }
+                self.recordedPreviewController = nil
+            }
+        }
+        
         cameraView.isHidden = true
         feedbackMessageLabel.text = "운동 종료"
     }
@@ -1000,7 +1091,6 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
         } else {
             cameraView.isHidden = false
             setupExerciseMode()
-            // pull-up 모드일 경우 상태 초기화 후 "봉을 잡으세요!" 표시
             if selectedMode == .pullUp {
                 isBarGrabbed = false
                 barGrabStartTime = nil
@@ -1106,26 +1196,19 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
     }
     
     // 턱걸이 – 조건
-    // ① 몸통(어깨, 엉덩이) 포인트가 전혀 인식되지 않거나 신뢰도가 낮으면 "위치를 재조정 해주세요!" 출력 후 카운트 중단
-    // ② 봉을 잡기 전에는 "봉을 잡으세요!" 출력 후, 0.7초 이상 손목이 어깨보다 위에 있으면 isBarGrabbed를 true로 전환하여 "턱걸이를 시작하세요!" 출력
-    // ③ 봉이 잡힌 상태에서 손목이 어깨 미만(봉 놓음)이 1.5초 이상 유지되면 isBarGrabbed를 false로 전환하고 "봉을 잡으세요!" 출력, 카운트 중단
-    // ④ 봉이 잡힌 상태에서는 기존의 카운트 기준(손목이 어깨의 평균 y 좌표에서 50포인트 이상 높은 상태에서 release 시 바로 countRepetition())을 적용하며,
-    //     팔꿈치 하강 속도가 너무 빠르면(임계치 초과 시) countRepetition()을 호출하지 않음.
     func analyzePullUp(results: VNHumanBodyPoseObservation) {
         guard let recognizedPoints = try? results.recognizedPoints(.all) else { return }
         
-        // 상체(어깨, 손목) 포인트 검사
         guard let leftShoulder = recognizedPoints[.leftShoulder],
               let rightShoulder = recognizedPoints[.rightShoulder],
               let leftWrist = recognizedPoints[.leftWrist],
               let rightWrist = recognizedPoints[.rightWrist] else {
             DispatchQueue.main.async {
-                self.feedbackMessageLabel.text = "몸이 보이게 서주세요!"
+                self.feedbackMessageLabel.text = "위치를 재조정 해주세요!"
             }
             return
         }
                 
-        // 신뢰도 검사
         if leftShoulder.confidence < 0.3 || rightShoulder.confidence < 0.3 ||
            leftWrist.confidence < 0.3 || rightWrist.confidence < 0.3 {
             DispatchQueue.main.async {
@@ -1141,10 +1224,8 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
         
         let shoulderY = (leftShoulderPos.y + rightShoulderPos.y) / 2
         let wristY = (leftWristPos.y + rightWristPos.y) / 2
-        // 수정: 손목 위치가 어깨의 평균 y 좌표에서 50포인트 이상 높은 경우 pull-up 포지션으로 판단
         let isInPullUpPosition = wristY < shoulderY - 40
         
-        // 봉 잡기 전 단계
         if !isBarGrabbed {
             if isInPullUpPosition {
                 if barGrabStartTime == nil {
@@ -1168,10 +1249,9 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
                     self.feedbackMessageLabel.text = "봉을 잡으세요!"
                 }
             }
-            return  // 봉 잡기 전에는 카운트 진행 안함.
+            return
         }
         
-        // 봉이 잡힌 상태에서, 만약 손목이 내려가 봉 놓은 상태가 1.5초 이상 유지되면 봉 잡은 상태 해제
         if isBarGrabbed && !isInPullUpPosition {
             if barReleaseStartTime == nil {
                 barReleaseStartTime = Date()
@@ -1186,17 +1266,15 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
                 return
             }
         } else {
-            // 손목이 다시 올리면 봉 놓은 타이머 초기화
             barReleaseStartTime = nil
         }
         
-        // 업데이트: 손목의 y축 하강 속도 체크
         let currentAverageWristY = wristY
         let now = Date()
         if let lastWrist = self.lastWristY, let lastUpdate = self.lastWristUpdateTime, !isInPullUpPosition, isPositionCorrect {
             let dt = now.timeIntervalSince(lastUpdate)
             let dropSpeed = (currentAverageWristY - lastWrist) / CGFloat(dt)
-            let speedThreshold: CGFloat = 30.0 // 초당 손목의 y축 이동범위 (사실상 턱걸이시 손목 움직임x, 약간의 오차범위라 생각)
+            let speedThreshold: CGFloat = 30.0
             if dropSpeed > speedThreshold {
                 isPositionCorrect = false
                 return
@@ -1205,7 +1283,6 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
         self.lastWristY = currentAverageWristY
         self.lastWristUpdateTime = now
         
-        // 봉이 잡힌 상태에서, 정상적인 턱걸이 동작 수행 (기존 기준 적용)
         DispatchQueue.main.async {
             self.feedbackMessageLabel.text = "턱걸이를 시작하세요!"
         }
@@ -1217,7 +1294,7 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
         } else {
             if isPositionCorrect {
                 let holdDuration = Date().timeIntervalSince(holdStartTime ?? Date())
-                if holdDuration >= 0 {           // 정자세 유지 시간
+                if holdDuration >= 0 {
                     if vibrationEnabled {
                         AudioServicesPlaySystemSound(kSystemSoundID_Vibrate)
                     }
@@ -1385,5 +1462,13 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
     func displayError(message: String) {
         feedbackMessageLabel.text = message
         feedbackMessageLabel.backgroundColor = UIColor.red.withAlphaComponent(0.6)
+    }
+}
+
+// MARK: - RPPreviewViewControllerDelegate 확장
+extension ExerciseViewController: RPPreviewViewControllerDelegate {
+    func previewControllerDidFinish(_ previewController: RPPreviewViewController) {
+        previewController.dismiss(animated: true, completion: nil)
+        self.recordedPreviewController = nil
     }
 }

@@ -2,6 +2,7 @@
 <document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="23504" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="Jfc-FC-XVD">
     <device id="retina6_12" orientation="portrait" appearance="light"/>
     <dependencies>
+        <deployment identifier="iOS"/>
         <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="23506"/>
         <capability name="Safe area layout guides" minToolsVersion="9.0"/>
         <capability name="System colors in document resources" minToolsVersion="11.0"/>
@@ -61,7 +62,7 @@
                 </viewController>
                 <placeholder placeholderIdentifier="IBFirstResponder" id="dkx-z0-nzr" sceneMemberID="firstResponder"/>
             </objects>
-            <point key="canvasLocation" x="-1231" y="746"/>
+            <point key="canvasLocation" x="-2131" y="746"/>
         </scene>
         <!--Tab Bar Controller-->
         <scene sceneID="xuG-DS-tV2">
@@ -71,12 +72,13 @@
                     <tabBar key="tabBar" contentMode="scaleToFill" insetsLayoutMarginsFromSafeArea="NO" id="wqR-u8-ANL">
                         <rect key="frame" x="0.0" y="0.0" width="1000" height="1000"/>
                         <autoresizingMask key="autoresizingMask"/>
-                        <color key="backgroundColor" white="0.33333333333333331" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
+                        <color key="backgroundColor" red="0.2352941036" green="0.2352941036" blue="0.2352941036" alpha="1" colorSpace="custom" customColorSpace="displayP3"/>
                         <color key="barTintColor" white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
                     </tabBar>
                     <connections>
                         <segue destination="BYZ-38-t0r" kind="relationship" relationship="viewControllers" id="2ah-aW-ura"/>
                         <segue destination="tXw-uU-yCT" kind="relationship" relationship="viewControllers" id="ha8-I8-grC"/>
+                        <segue destination="Sgp-HK-H5U" kind="relationship" relationship="viewControllers" id="osq-sY-X7n"/>
                         <segue destination="1Gr-fP-0Xg" kind="relationship" relationship="viewControllers" id="2OK-Cb-ivE"/>
                     </connections>
                 </tabBarController>
@@ -100,6 +102,22 @@
             </objects>
             <point key="canvasLocation" x="514" y="-27"/>
         </scene>
+        <!--비디오-->
+        <scene sceneID="BuY-jc-mrL">
+            <objects>
+                <viewController id="Sgp-HK-H5U" customClass="VideoGalleryViewController" customModule="Exercise" customModuleProvider="target" sceneMemberID="viewController">
+                    <view key="view" contentMode="scaleToFill" id="FnX-zj-VIu">
+                        <rect key="frame" x="0.0" y="0.0" width="393" height="852"/>
+                        <autoresizingMask key="autoresizingMask" widthSizable="YES" heightSizable="YES"/>
+                        <viewLayoutGuide key="safeArea" id="ou8-mK-fwG"/>
+                        <color key="backgroundColor" systemColor="systemBackgroundColor"/>
+                    </view>
+                    <tabBarItem key="tabBarItem" title="비디오" image="video.fill" catalog="system" selectedImage="video.fill" id="DL3-R1-KLu"/>
+                </viewController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="FkO-jf-kzM" userLabel="First Responder" customClass="UIResponder" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="396" y="746"/>
+        </scene>
         <!--설정-->
         <scene sceneID="evc-0K-IeG">
             <objects>
@@ -115,7 +133,7 @@
                 </viewController>
                 <placeholder placeholderIdentifier="IBFirstResponder" id="vLU-4S-48S" userLabel="First Responder" customClass="UIResponder" sceneMemberID="firstResponder"/>
             </objects>
-            <point key="canvasLocation" x="1223.6641221374045" y="745.77464788732402"/>
+            <point key="canvasLocation" x="1385" y="746"/>
         </scene>
         <!--Statistics View Controller-->
         <scene sceneID="XSH-hz-f6s">
@@ -131,7 +149,7 @@
                 </viewController>
                 <placeholder placeholderIdentifier="IBFirstResponder" id="T60-lf-rnE" userLabel="First Responder" customClass="UIResponder" sceneMemberID="firstResponder"/>
             </objects>
-            <point key="canvasLocation" x="446.56488549618319" y="745.77464788732402"/>
+            <point key="canvasLocation" x="-621" y="746"/>
         </scene>
         <!--Navigation Controller-->
         <scene sceneID="PtK-ia-Xng">
@@ -168,13 +186,14 @@
                 </navigationController>
                 <placeholder placeholderIdentifier="IBFirstResponder" id="SEe-Km-ECY" userLabel="First Responder" customClass="UIResponder" sceneMemberID="firstResponder"/>
             </objects>
-            <point key="canvasLocation" x="-480.15267175572518" y="745.77464788732402"/>
+            <point key="canvasLocation" x="-1408" y="746"/>
         </scene>
     </scenes>
     <resources>
         <image name="chart.line.text.clipboard.fill" catalog="system" width="103" height="128"/>
         <image name="figure.strengthtraining.functional" catalog="system" width="117" height="128"/>
         <image name="gear" catalog="system" width="128" height="122"/>
+        <image name="video.fill" catalog="system" width="128" height="81"/>
         <systemColor name="systemBackgroundColor">
             <color white="1" alpha="1" colorSpace="custom" customColorSpace="genericGamma22GrayColorSpace"/>
         </systemColor>
