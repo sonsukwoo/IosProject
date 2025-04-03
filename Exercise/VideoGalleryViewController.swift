@@ -5,24 +5,19 @@ import Photos
 class VideoGalleryViewController: UIViewController, UITableViewDelegate, UITableViewDataSource {
     
     let tableView = UITableView()
-    var videoURLs: [URL] = []
+    var videoAssets: [PHAsset] = []
     
     override func viewDidLoad() {
         super.viewDidLoad()
         
-        // 전체 배경색을 검은색으로 설정
         view.backgroundColor = .black
-      
-        
         setupTableView()
-        loadVideoURLs()
+        loadVideoAssets()
         setupNavigationBar()
     }
     
     func setupNavigationBar() {
-        // 오른쪽 바 버튼을 통해 삭제 기능 등을 추가할 수 있음
         navigationItem.rightBarButtonItem = UIBarButtonItem(title: "삭제", style: .plain, target: self, action: #selector(deleteSelectedVideo))
-        // 네비게이션 바 텍스트 및 버튼 색상을 흰색으로 설정
         navigationController?.navigationBar.tintColor = .white
         navigationController?.navigationBar.titleTextAttributes = [NSAttributedString.Key.foregroundColor: UIColor.white]
     }
@@ -31,7 +26,6 @@ class VideoGalleryViewController: UIViewController, UITableViewDelegate, UITable
         view.addSubview(tableView)
         tableView.translatesAutoresizingMaskIntoConstraints = false
         
-        // 오토레이아웃 제약조건으로 전체 화면 채우기
         NSLayoutConstraint.activate([
             tableView.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor),
             tableView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
@@ -43,39 +37,37 @@ class VideoGalleryViewController: UIViewController, UITableViewDelegate, UITable
         tableView.dataSource = self
         tableView.register(UITableViewCell.self, forCellReuseIdentifier: "VideoCell")
         
-        // 테이블 뷰 배경색과 구분선 색상 설정
         tableView.backgroundColor = .black
         tableView.separatorColor = .darkGray
     }
     
-    func loadVideoURLs() {
-        let fm = FileManager.default
-        guard let docsURL = fm.urls(for: .documentDirectory, in: .userDomainMask).first else { return }
-        let videosDir = docsURL.appendingPathComponent("Videos")
-        
-        // "Videos" 폴더가 없으면 생성
-        if !fm.fileExists(atPath: videosDir.path) {
-            do {
-                try fm.createDirectory(at: videosDir, withIntermediateDirectories: true, attributes: nil)
-            } catch {
-                print("Videos 폴더 생성 오류: \(error)")
+    func loadVideoAssets() {
+        // 포토 라이브러리 접근 권한 요청
+        PHPhotoLibrary.requestAuthorization { status in
+            if status == .authorized || status == .limited {
+                let fetchOptions = PHFetchOptions()
+                // 생성일 순으로 내림차순 정렬
+                fetchOptions.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+                let videoResults = PHAsset.fetchAssets(with: .video, options: fetchOptions)
+                videoResults.enumerateObjects { (asset, index, stop) in
+                    self.videoAssets.append(asset)
+                }
+                DispatchQueue.main.async {
+                    self.tableView.reloadData()
+                    self.updateEmptyMessage()
+                }
+            } else {
+                DispatchQueue.main.async {
+                    let alert = UIAlertController(title: "접근 불가", message: "사진 라이브러리 접근이 허용되지 않았습니다.", preferredStyle: .alert)
+                    alert.addAction(UIAlertAction(title: "확인", style: .default))
+                    self.present(alert, animated: true)
+                }
             }
-        }
-        
-        do {
-            let files = try fm.contentsOfDirectory(at: videosDir, includingPropertiesForKeys: nil, options: [])
-            // .mp4 확장자만 필터링 (소문자로 비교)
-            videoURLs = files.filter { $0.pathExtension.lowercased() == "mp4" }
-            tableView.reloadData()
-            updateEmptyMessage()
-        } catch {
-            print("영상 파일 로딩 오류: \(error)")
         }
     }
     
-    // 동영상 파일이 없을 경우 메시지 라벨을 표시
     func updateEmptyMessage() {
-        if videoURLs.isEmpty {
+        if videoAssets.isEmpty {
             let emptyLabel = UILabel()
             emptyLabel.text = "동영상 파일이 없습니다."
             emptyLabel.textColor = .white
@@ -89,13 +81,22 @@ class VideoGalleryViewController: UIViewController, UITableViewDelegate, UITable
     
     // MARK: - UITableViewDataSource Methods
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-         return videoURLs.count
+         return videoAssets.count
     }
     
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
          let cell = tableView.dequeueReusableCell(withIdentifier: "VideoCell", for: indexPath)
-         cell.textLabel?.text = videoURLs[indexPath.row].lastPathComponent
-         cell.textLabel?.textColor = .white   // 셀 텍스트 색상을 흰색으로 설정
+         let asset = videoAssets[indexPath.row]
+         
+         // 생성일을 표시하거나, 없으면 기본 텍스트 사용
+         if let creationDate = asset.creationDate {
+             let formatter = DateFormatter()
+             formatter.dateStyle = .medium
+             cell.textLabel?.text = formatter.string(from: creationDate)
+         } else {
+             cell.textLabel?.text = "비디오 \(indexPath.row + 1)"
+         }
+         cell.textLabel?.textColor = .white
          cell.backgroundColor = .black
          return cell
     }
@@ -103,26 +104,39 @@ class VideoGalleryViewController: UIViewController, UITableViewDelegate, UITable
     // MARK: - UITableViewDelegate Methods
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
          tableView.deselectRow(at: indexPath, animated: true)
-         let videoURL = videoURLs[indexPath.row]
-         let player = AVPlayer(url: videoURL)
-         let playerVC = AVPlayerViewController()
-         playerVC.player = player
-         present(playerVC, animated: true) {
-              player.play()
+         let asset = videoAssets[indexPath.row]
+         let options = PHVideoRequestOptions()
+         options.deliveryMode = .automatic
+         options.isNetworkAccessAllowed = true
+         PHImageManager.default().requestPlayerItem(forVideo: asset, options: options) { playerItem, info in
+              guard let playerItem = playerItem else { return }
+              DispatchQueue.main.async {
+                   let player = AVPlayer(playerItem: playerItem)
+                   let playerVC = AVPlayerViewController()
+                   playerVC.player = player
+                   self.present(playerVC, animated: true) {
+                        player.play()
+                   }
+              }
          }
     }
     
     // MARK: - 삭제 기능 (선택된 동영상 삭제)
     @objc func deleteSelectedVideo() {
          guard let indexPath = tableView.indexPathForSelectedRow else { return }
-         let urlToDelete = videoURLs[indexPath.row]
-         do {
-              try FileManager.default.removeItem(at: urlToDelete)
-              videoURLs.remove(at: indexPath.row)
-              tableView.deleteRows(at: [indexPath], with: .automatic)
-              updateEmptyMessage()  // 삭제 후 파일이 없으면 빈 메시지 업데이트
-         } catch {
-              print("영상 삭제 오류: \(error)")
+         let asset = videoAssets[indexPath.row]
+         PHPhotoLibrary.shared().performChanges({
+              PHAssetChangeRequest.deleteAssets([asset] as NSArray)
+         }) { success, error in
+              if success {
+                   DispatchQueue.main.async {
+                        self.videoAssets.remove(at: indexPath.row)
+                        self.tableView.deleteRows(at: [indexPath], with: .automatic)
+                        self.updateEmptyMessage()
+                   }
+              } else {
+                   print("영상 삭제 오류: \(String(describing: error))")
+              }
          }
     }
 }

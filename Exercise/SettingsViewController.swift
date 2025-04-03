@@ -67,7 +67,7 @@ class SettingsViewController: UIViewController {
     // MARK: - 진동 스위치 (저장 버튼 아래 추가)
     let vibrationLabel: UILabel = {
         let label = UILabel()
-        label.text = "진동 피드백"
+        label.text = "카운트 진동 피드백"
         label.font = UIFont.systemFont(ofSize: 16)
         label.textColor = .white
         label.translatesAutoresizingMaskIntoConstraints = false
