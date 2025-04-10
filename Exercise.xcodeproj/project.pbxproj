@@ -311,6 +311,8 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Exercise/Info.plist;
 				INFOPLIST_KEY_NSCameraUsageDescription = "앱에서 카메라를 사용하여 운동을 분석합니다.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "녹화 영상을 사진 앨범에 저장하기 위해 필요합니다.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "운동 녹화 시 음성을 기록을 위해 마이크 접근이 필요합니다.";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
 				INFOPLIST_KEY_UIMainStoryboardFile = Main;
@@ -342,6 +344,8 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Exercise/Info.plist;
 				INFOPLIST_KEY_NSCameraUsageDescription = "앱에서 카메라를 사용하여 운동을 분석합니다.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "녹화 영상을 사진 앨범에 저장하기 위해 필요합니다.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "운동 녹화 시 음성을 기록을 위해 마이크 접근이 필요합니다.";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchStoryboardName = LaunchScreen;
 				INFOPLIST_KEY_UIMainStoryboardFile = Main;
