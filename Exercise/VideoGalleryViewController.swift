@@ -1,13 +1,35 @@
+
 import UIKit
 import AVKit
 import Photos
 import AVFoundation
+
+// MARK: - Helpers
+private extension URL {
+    /// 파일명에서 운동 종류(스쿼트, 푸쉬업, 턱걸이 등)를 추출
+    var exerciseType: String {
+        let name = deletingPathExtension().lastPathComponent
+        return name.components(separatedBy: "_").first ?? "알 수 없음"
+    }
+}
 
 class VideoGalleryViewController: UIViewController, UITableViewDelegate, UITableViewDataSource {
 
     let tableView = UITableView()
     var videoURLs: [URL] = []
     var thumbnails: [URL: UIImage] = [:]
+    
+    // MARK: - Search Bar
+    private var navSearchBar: UISearchBar?
+    private var filteredVideoURLs: [URL] = []
+    private var isFiltering: Bool {
+        return navSearchBar?.isFirstResponder == true && !(navSearchBar?.text?.isEmpty ?? true)
+    }
+    private let dateFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "yyyy.MM.dd HH:mm"
+        return f
+    }()
 
     override func viewDidLoad() {
         super.viewDidLoad()
@@ -25,12 +47,37 @@ class VideoGalleryViewController: UIViewController, UITableViewDelegate, UITable
     }
     
     func setupNavigationBar() {
-        // 오른쪽 버튼: 선택 삭제 (선택된 항목 삭제)
-        navigationItem.rightBarButtonItem = UIBarButtonItem(title: "선택 삭제", style: .plain, target: self, action: #selector(deleteSelectedVideo))
-        // 왼쪽 버튼: 전체 삭제 (앱 내 모든 동영상 삭제)
-        navigationItem.leftBarButtonItem = UIBarButtonItem(title: "전체 삭제", style: .plain, target: self, action: #selector(deleteAllVideos))
-        navigationController?.navigationBar.tintColor = .white
-        navigationController?.navigationBar.titleTextAttributes = [NSAttributedString.Key.foregroundColor: UIColor.white]
+        // Left title label
+        let leftSpacer = UIBarButtonItem(barButtonSystemItem: .fixedSpace, target: nil, action: nil)
+        leftSpacer.width = 20
+        let leftLabel = UILabel()
+        leftLabel.text = "비디오"
+        leftLabel.font = UIFont.systemFont(ofSize: 25, weight: .bold)
+        leftLabel.textColor = .white
+        let leftItem = UIBarButtonItem(customView: leftLabel)
+        navigationItem.leftBarButtonItems = [leftSpacer, leftItem]
+
+        // Right search button
+        let searchButton = UIButton(type: .system)
+        let image = UIImage(systemName: "magnifyingglass", withConfiguration: UIImage.SymbolConfiguration(pointSize: 20, weight: .regular))
+        searchButton.setImage(image, for: .normal)
+        searchButton.tintColor = .systemBlue
+        searchButton.addTarget(self, action: #selector(searchButtonTapped), for: .touchUpInside)
+        let searchItem = UIBarButtonItem(customView: searchButton)
+        navigationItem.rightBarButtonItems = [searchItem]
+    }
+    
+    @objc func searchButtonTapped() {
+        if navSearchBar == nil {
+            navSearchBar = UISearchBar(frame: CGRect(x: 0, y: 0, width: view.frame.width - 40, height: 44))
+            navSearchBar?.delegate = self
+            navSearchBar?.placeholder = "비디오 검색"
+            navSearchBar?.showsCancelButton = true
+        }
+        navigationItem.leftBarButtonItems = nil
+        navigationItem.rightBarButtonItems = nil
+        navigationItem.titleView = navSearchBar
+        navSearchBar?.becomeFirstResponder()
     }
     
     func setupTableView() {
@@ -105,27 +152,32 @@ class VideoGalleryViewController: UIViewController, UITableViewDelegate, UITable
             tableView.backgroundView = nil
         }
     }
+
+    // MARK: - Search
+    private func applySearchFiltering(with rawQuery: String?) {
+        let query = (rawQuery ?? "").trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard !query.isEmpty else {
+            filteredVideoURLs = videoURLs
+            tableView.reloadData()
+            return
+        }
+        filteredVideoURLs = videoURLs.filter { $0.exerciseType.lowercased().contains(query) }
+        tableView.reloadData()
+    }
     
     // MARK: - UITableViewDataSource & Delegate
     
     func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return videoURLs.count
+        return isFiltering ? filteredVideoURLs.count : videoURLs.count
     }
     
     func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         let cell = tableView.dequeueReusableCell(withIdentifier: "VideoCell", for: indexPath) as! VideoCell
-        let url = videoURLs[indexPath.row]
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy.MM.dd HH:mm"
+        let currentList = isFiltering ? filteredVideoURLs : videoURLs
+        let url = currentList[indexPath.row]
         let creationDate = (try? url.resourceValues(forKeys: [.creationDateKey]).creationDate) ?? Date()
-        let dateString = formatter.string(from: creationDate)
-        
-        // 파일명 예: "푸쉬업_1680000000.mp4"
-        let fileName = url.lastPathComponent
-        let components = fileName.components(separatedBy: "_")
-        // 첫 번째 부분(운동 종목 정보)를 추출; 없으면 기본값 "운동 기록"
-        let exerciseType = components.first ?? "운동 기록"
-        
+        let dateString = dateFormatter.string(from: creationDate)
+        let exerciseType = url.exerciseType
         cell.titleLabel.text = "\(exerciseType) (\(dateString))"
         cell.thumbnailImageView.image = thumbnails[url] ?? UIImage(systemName: "video")
         return cell
@@ -134,7 +186,8 @@ class VideoGalleryViewController: UIViewController, UITableViewDelegate, UITable
     func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
         // 동영상 재생 기능
         tableView.deselectRow(at: indexPath, animated: true)
-        let videoURL = videoURLs[indexPath.row]
+        let currentList = isFiltering ? filteredVideoURLs : videoURLs
+        let videoURL = currentList[indexPath.row]
         let player = AVPlayer(url: videoURL)
         let playerVC = AVPlayerViewController()
         playerVC.player = player
@@ -222,6 +275,25 @@ class VideoGalleryViewController: UIViewController, UITableViewDelegate, UITable
     
     @objc func handleVideoExportCompleted() {
         loadVideoURLs()
+    }
+}
+
+// MARK: - UISearchBarDelegate
+extension VideoGalleryViewController: UISearchBarDelegate {
+    func searchBar(_ searchBar: UISearchBar, textDidChange searchText: String) {
+        applySearchFiltering(with: searchText)
+    }
+
+    func searchBarSearchButtonClicked(_ searchBar: UISearchBar) {
+        applySearchFiltering(with: searchBar.text)
+        searchBar.resignFirstResponder()
+    }
+
+    func searchBarCancelButtonClicked(_ searchBar: UISearchBar) {
+        navigationItem.titleView = nil
+        setupNavigationBar()
+        filteredVideoURLs = videoURLs
+        tableView.reloadData()
     }
 }
 

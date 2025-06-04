@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		DF2D28462DEE2838002632F6 /* DGCharts in Frameworks */ = {isa = PBXBuildFile; productRef = DF2D28452DEE2838002632F6 /* DGCharts */; };
 		DF4136B42D45898000300CC1 /* FSCalendar in Frameworks */ = {isa = PBXBuildFile; productRef = DF4136B32D45898000300CC1 /* FSCalendar */; };
 /* End PBXBuildFile section */
 
@@ -69,6 +70,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				DF2D28462DEE2838002632F6 /* DGCharts in Frameworks */,
 				DF4136B42D45898000300CC1 /* FSCalendar in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -139,6 +141,7 @@
 			name = Exercise;
 			packageProductDependencies = (
 				DF4136B32D45898000300CC1 /* FSCalendar */,
+				DF2D28452DEE2838002632F6 /* DGCharts */,
 			);
 			productName = Exercise;
 			productReference = DF6E94B92CDC192200BC6888 /* Exercise.app */;
@@ -225,6 +228,7 @@
 			packageReferences = (
 				DF4136B12D4587F400300CC1 /* XCRemoteSwiftPackageReference "FSCalendar" */,
 				DF002F952D616C630065853A /* XCRemoteSwiftPackageReference "Inject" */,
+				DF2D28442DEE2838002632F6 /* XCRemoteSwiftPackageReference "Charts" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = DF6E94BA2CDC192200BC6888 /* Products */;
@@ -607,6 +611,14 @@
 				minimumVersion = 1.5.2;
 			};
 		};
+		DF2D28442DEE2838002632F6 /* XCRemoteSwiftPackageReference "Charts" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/danielgindi/Charts.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 5.1.0;
+			};
+		};
 		DF4136B12D4587F400300CC1 /* XCRemoteSwiftPackageReference "FSCalendar" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/WenchaoD/FSCalendar.git";
@@ -618,6 +630,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		DF2D28452DEE2838002632F6 /* DGCharts */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = DF2D28442DEE2838002632F6 /* XCRemoteSwiftPackageReference "Charts" */;
+			productName = DGCharts;
+		};
 		DF4136B32D45898000300CC1 /* FSCalendar */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = DF4136B12D4587F400300CC1 /* XCRemoteSwiftPackageReference "FSCalendar" */;

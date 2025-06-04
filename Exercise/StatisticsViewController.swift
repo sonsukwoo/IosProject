@@ -513,10 +513,10 @@ class StatisticsViewController: UIViewController,
         monthlyStatsButton.subviews.forEach { $0.isUserInteractionEnabled = false }
         
         setupDailyStatsUI(in: dailyStatsButton)
-        dailyStatsButton.addTarget(self, action: #selector(statisticsButtonTapped), for: .touchUpInside)
+        dailyStatsButton.addTarget(self, action: #selector(statisticsButtonTapped(_:)), for: .touchUpInside)
         
         setupMonthlyStatsUI(in: monthlyStatsButton)
-        monthlyStatsButton.addTarget(self, action: #selector(statisticsButtonTapped), for: .touchUpInside)
+        monthlyStatsButton.addTarget(self, action: #selector(statisticsButtonTapped(_:)), for: .touchUpInside)
     }
     
     @objc func pageControlChanged(_ sender: UIPageControl) {
@@ -1233,16 +1233,30 @@ class StatisticsViewController: UIViewController,
         tableView.reloadData()
     }
     
-    @objc func statisticsButtonTapped() {
+    @objc func statisticsButtonTapped(_ sender: UIButton) {
+        // 상세 통계 화면으로 전달할 스토리보드 VC 가져오기
         let storyboard = UIStoryboard(name: "Main", bundle: nil)
-        if let detailVC = storyboard.instantiateViewController(withIdentifier: "MonthlyDetailViewController")
-            as? MonthlyDetailViewController {
-            detailVC.modalPresentationStyle = .custom
-            detailVC.transitioningDelegate = self
-            present(detailVC, animated: true, completion: nil)
-        } else {
+        guard let detailVC = storyboard
+                .instantiateViewController(withIdentifier: "MonthlyDetailViewController")
+                    as? MonthlyDetailViewController else {
             showAlert(title: "오류", message: "통계 상세 화면을 불러올 수 없습니다.")
+            return
         }
+
+        // 선택된 날짜가 없으면 default = 오늘
+        detailVC.selectedDate = calendar.selectedDate ?? Date()
+        // 월간 차트에 쓰일 현재 달 정보도 전달
+        detailVC.currentMonth = calendar.currentPage
+
+        // 일별 버튼(좌측) → 일차트(0), 월별 버튼(우측) → 월차트(3)
+        detailVC.initialSegmentIndex = (sender === dailyStatsButton) ? 0 : 2
+
+        // 네비게이션 컨트롤러에 통계 VC를 담아 모달로 표시 → 뒤로 버튼 활성
+        let nav = UINavigationController(rootViewController: detailVC)
+        nav.isNavigationBarHidden = false
+        nav.modalPresentationStyle = .custom
+        nav.transitioningDelegate  = self
+        present(nav, animated: true, completion: nil)
     }
     
     // MARK: - FSCalendarDataSource & Delegate Methods

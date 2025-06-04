@@ -1,9 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="23504" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="Jfc-FC-XVD">
+<document type="com.apple.InterfaceBuilder3.CocoaTouch.Storyboard.XIB" version="3.0" toolsVersion="23727" targetRuntime="iOS.CocoaTouch" propertyAccessControl="none" useAutolayout="YES" useTraitCollections="YES" useSafeAreas="YES" colorMatched="YES" initialViewController="Jfc-FC-XVD">
     <device id="retina6_12" orientation="portrait" appearance="light"/>
     <dependencies>
-        <deployment identifier="iOS"/>
-        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="23506"/>
+        <plugIn identifier="com.apple.InterfaceBuilder.IBCocoaTouchPlugin" version="23721"/>
         <capability name="Safe area layout guides" minToolsVersion="9.0"/>
         <capability name="System colors in document resources" minToolsVersion="11.0"/>
         <capability name="documents saved in the Xcode 8 format" minToolsVersion="8.0"/>
@@ -78,7 +77,7 @@
                     <connections>
                         <segue destination="BYZ-38-t0r" kind="relationship" relationship="viewControllers" id="2ah-aW-ura"/>
                         <segue destination="tXw-uU-yCT" kind="relationship" relationship="viewControllers" id="ha8-I8-grC"/>
-                        <segue destination="Sgp-HK-H5U" kind="relationship" relationship="viewControllers" id="osq-sY-X7n"/>
+                        <segue destination="9Ii-wn-193" kind="relationship" relationship="viewControllers" id="osq-sY-X7n"/>
                         <segue destination="1Gr-fP-0Xg" kind="relationship" relationship="viewControllers" id="2OK-Cb-ivE"/>
                     </connections>
                 </tabBarController>
@@ -100,9 +99,9 @@
                 </viewController>
                 <placeholder placeholderIdentifier="IBFirstResponder" id="zCe-cu-ggL" userLabel="First Responder" customClass="UIResponder" sceneMemberID="firstResponder"/>
             </objects>
-            <point key="canvasLocation" x="514" y="-27"/>
+            <point key="canvasLocation" x="1440.4580152671756" y="-27.464788732394368"/>
         </scene>
-        <!--비디오-->
+        <!--Video Gallery View Controller-->
         <scene sceneID="BuY-jc-mrL">
             <objects>
                 <viewController id="Sgp-HK-H5U" customClass="VideoGalleryViewController" customModule="Exercise" customModuleProvider="target" sceneMemberID="viewController">
@@ -112,11 +111,11 @@
                         <viewLayoutGuide key="safeArea" id="ou8-mK-fwG"/>
                         <color key="backgroundColor" systemColor="systemBackgroundColor"/>
                     </view>
-                    <tabBarItem key="tabBarItem" title="비디오" image="video.fill" catalog="system" selectedImage="video.fill" id="DL3-R1-KLu"/>
+                    <navigationItem key="navigationItem" id="Vif-aL-Fzf"/>
                 </viewController>
                 <placeholder placeholderIdentifier="IBFirstResponder" id="FkO-jf-kzM" userLabel="First Responder" customClass="UIResponder" sceneMemberID="firstResponder"/>
             </objects>
-            <point key="canvasLocation" x="396" y="746"/>
+            <point key="canvasLocation" x="1321.3740458015266" y="745.77464788732402"/>
         </scene>
         <!--설정-->
         <scene sceneID="evc-0K-IeG">
@@ -133,7 +132,7 @@
                 </viewController>
                 <placeholder placeholderIdentifier="IBFirstResponder" id="vLU-4S-48S" userLabel="First Responder" customClass="UIResponder" sceneMemberID="firstResponder"/>
             </objects>
-            <point key="canvasLocation" x="1385" y="746"/>
+            <point key="canvasLocation" x="2310.6870229007632" y="745.77464788732402"/>
         </scene>
         <!--Statistics View Controller-->
         <scene sceneID="XSH-hz-f6s">
@@ -157,12 +156,12 @@
                 <navigationController automaticallyAdjustsScrollViewInsets="NO" id="C1B-hl-10X" sceneMemberID="viewController">
                     <toolbarItems/>
                     <navigationBar key="navigationBar" contentMode="scaleToFill" id="jat-sU-Mlq">
-                        <rect key="frame" x="0.0" y="59" width="393" height="44"/>
+                        <rect key="frame" x="0.0" y="118" width="393" height="44"/>
                         <autoresizingMask key="autoresizingMask"/>
                     </navigationBar>
                     <nil name="viewControllers"/>
                     <connections>
-                        <segue destination="pxR-LE-wnw" kind="relationship" relationship="rootViewController" id="gWI-ED-JLM"/>
+                        <segue destination="o0d-rI-gQf" kind="relationship" relationship="rootViewController" id="gWI-ED-JLM"/>
                     </connections>
                 </navigationController>
                 <placeholder placeholderIdentifier="IBFirstResponder" id="QqY-Eq-YBl" userLabel="First Responder" customClass="UIResponder" sceneMemberID="firstResponder"/>
@@ -176,7 +175,7 @@
                     <tabBarItem key="tabBarItem" title="기록" image="chart.line.text.clipboard.fill" catalog="system" id="rYl-tN-C2J"/>
                     <toolbarItems/>
                     <navigationBar key="navigationBar" contentMode="scaleToFill" id="nKF-MC-9Mb" customClass="CustomNavigationBar" customModule="Exercise">
-                        <rect key="frame" x="0.0" y="59" width="393" height="44"/>
+                        <rect key="frame" x="0.0" y="118" width="393" height="44"/>
                         <autoresizingMask key="autoresizingMask"/>
                     </navigationBar>
                     <nil name="viewControllers"/>
@@ -187,6 +186,44 @@
                 <placeholder placeholderIdentifier="IBFirstResponder" id="SEe-Km-ECY" userLabel="First Responder" customClass="UIResponder" sceneMemberID="firstResponder"/>
             </objects>
             <point key="canvasLocation" x="-1408" y="746"/>
+        </scene>
+        <!--비디오-->
+        <scene sceneID="Akn-cY-vga">
+            <objects>
+                <navigationController automaticallyAdjustsScrollViewInsets="NO" id="9Ii-wn-193" sceneMemberID="viewController">
+                    <tabBarItem key="tabBarItem" title="비디오" image="video.fill" catalog="system" selectedImage="video.fill" id="DL3-R1-KLu"/>
+                    <toolbarItems/>
+                    <navigationBar key="navigationBar" contentMode="scaleToFill" id="hzX-el-06p">
+                        <rect key="frame" x="0.0" y="118" width="393" height="44"/>
+                        <autoresizingMask key="autoresizingMask"/>
+                    </navigationBar>
+                    <nil name="viewControllers"/>
+                    <connections>
+                        <segue destination="Sgp-HK-H5U" kind="relationship" relationship="rootViewController" id="P6Z-4R-rdo"/>
+                    </connections>
+                </navigationController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="0Od-P0-oBs" userLabel="First Responder" customClass="UIResponder" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="394.6564885496183" y="745.77464788732402"/>
+        </scene>
+        <!--Navigation Controller-->
+        <scene sceneID="bxf-5D-Bvz">
+            <objects>
+                <navigationController automaticallyAdjustsScrollViewInsets="NO" id="o0d-rI-gQf" sceneMemberID="viewController">
+                    <toolbarItems/>
+                    <navigationItem key="navigationItem" id="wqG-OB-FSO"/>
+                    <navigationBar key="navigationBar" contentMode="scaleToFill" id="Rty-qK-AA6">
+                        <rect key="frame" x="0.0" y="118" width="393" height="44"/>
+                        <autoresizingMask key="autoresizingMask"/>
+                    </navigationBar>
+                    <nil name="viewControllers"/>
+                    <connections>
+                        <segue destination="pxR-LE-wnw" kind="relationship" relationship="rootViewController" id="BGG-Xs-0fd"/>
+                    </connections>
+                </navigationController>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="lGN-vx-sSu" userLabel="First Responder" customClass="UIResponder" sceneMemberID="firstResponder"/>
+            </objects>
+            <point key="canvasLocation" x="513.74045801526711" y="-27.464788732394368"/>
         </scene>
     </scenes>
     <resources>

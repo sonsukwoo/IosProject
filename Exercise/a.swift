@@ -45,6 +45,14 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
     var exerciseStartTime: Date?  // 운동 시작 시간
     
     var calorieTimer: DispatchSourceTimer?
+
+    // MARK: - Readiness flags
+    var squatReady = false
+    var pullUpReady = false
+    var squatDetectionStartTime: Date?
+
+    // For restoring feedback text after knee-hand separation
+    var previousFeedbackText: String?
     
     // Main Timer for 운동 시간 표시
     var mainTimer: Timer?
@@ -680,24 +688,39 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
         timerLabel.text = "00:00"
         feedbackMessageLabel.text = "운동을 시작합니다..."
         overlayLayer.strokeColor = UIColor.orange.cgColor
-        
-        startCountdown()
+
+        switch selectedMode {
+        case .squat:
+            feedbackMessageLabel.text = "전신을 인식 중입니다..."
+            squatReady = false
+            cameraView.isHidden = false
+            captureSession.startRunning()
+        case .pullUp:
+            feedbackMessageLabel.text = "봉을 잡으세요!"
+            pullUpReady = false
+            cameraView.isHidden = false
+            captureSession.startRunning()
+        default:
+            captureSession.startRunning()
+            startCountdown()
+        }
     }
     
     // MARK: - 카운트다운 구현
     func startCountdown() {
+        cameraView.isHidden = true
         var countdown = 3
         countdownLabel.text = "\(countdown)"
         countdownLabel.isHidden = false
         countdownProgressLayer.strokeEnd = 0
-        
+
         let progressAnimation = CABasicAnimation(keyPath: "strokeEnd")
         progressAnimation.fromValue = 0
         progressAnimation.toValue = 1
         progressAnimation.duration = 3.0
         countdownProgressLayer.add(progressAnimation, forKey: "progressAnimation")
         countdownProgressLayer.strokeEnd = 1
-        
+
         countdownTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
             guard let self = self else { return }
             countdown -= 1
@@ -707,6 +730,7 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
                 timer.invalidate()
                 self.countdownTimer = nil
                 self.countdownLabel.isHidden = true
+                self.cameraView.isHidden = false
                 self.captureSession.startRunning()
                 self.setupExerciseMode()
                 self.feedbackMessageLabel.text = (self.selectedMode == .pullUp) ? "봉을 잡으세요!" : "운동을 시작하세요!"
@@ -1064,6 +1088,43 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
     // MARK: - 운동 측정 메소드 (스쿼트, 푸쉬업, 턱걸이 등)
     func analyzeSquat(results: VNHumanBodyPoseObservation) {
         guard let recognizedPoints = try? results.recognizedPoints(.all) else { return }
+        // 손을 무릎에 붙이고 스쿼트 시 카운트 무효화 및 피드백
+        if let leftWrist = recognizedPoints[.leftWrist],
+           let rightWrist = recognizedPoints[.rightWrist],
+           let leftKnee = recognizedPoints[.leftKnee],
+           let rightKnee = recognizedPoints[.rightKnee] {
+            // 화면 좌표로 변환
+            let lwPos = previewLayer.layerPointConverted(fromCaptureDevicePoint: CGPoint(x: leftWrist.location.x, y: 1 - leftWrist.location.y))
+            let rwPos = previewLayer.layerPointConverted(fromCaptureDevicePoint: CGPoint(x: rightWrist.location.x, y: 1 - rightWrist.location.y))
+            let lkPos = previewLayer.layerPointConverted(fromCaptureDevicePoint: CGPoint(x: leftKnee.location.x, y: 1 - leftKnee.location.y))
+            let rkPos = previewLayer.layerPointConverted(fromCaptureDevicePoint: CGPoint(x: rightKnee.location.x, y: 1 - rightKnee.location.y))
+            // 거리 계산
+            let leftDist = hypot(lwPos.x - lkPos.x, lwPos.y - lkPos.y)
+            let rightDist = hypot(rwPos.x - rkPos.x, rwPos.y - rkPos.y)
+            let threshold: CGFloat = 40.0
+            if leftDist < threshold && rightDist < threshold {
+                DispatchQueue.main.async {
+                    if self.previousFeedbackText == nil {
+                        self.previousFeedbackText = self.feedbackMessageLabel.text
+                    }
+                    self.feedbackMessageLabel.text = "팔을 가슴쪽에 모아주세요."
+                }
+                if self.isSpeechEnabled {
+                    let utterance = AVSpeechUtterance(string: "팔을 가슴쪽에 모아주세요")
+                    utterance.voice = AVSpeechSynthesisVoice(language: "ko-KR")
+                    self.speechSynthesizer.speak(utterance)
+                }
+                return
+            }
+            // Restore feedback when hands leave knees
+            if let prev = previousFeedbackText {
+                self.speechSynthesizer.stopSpeaking(at: .immediate)
+                DispatchQueue.main.async {
+                    self.feedbackMessageLabel.text = prev
+                }
+                previousFeedbackText = nil
+            }
+        }
         if let leftKnee = recognizedPoints[.leftKnee],
            let rightKnee = recognizedPoints[.rightKnee],
            let leftHip = recognizedPoints[.leftHip],
@@ -1260,10 +1321,86 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
                     self.drawOverlay(for: results)
                     switch self.selectedMode {
                     case .squat:
+                        if !self.squatReady {
+                            // Perform full-body joint confidence + in-view check
+                            if let recognizedPoints = try? results.recognizedPoints(.all) {
+                                let requiredJoints: [VNHumanBodyPoseObservation.JointName] = [
+                                    .leftShoulder, .rightShoulder,
+                                    .leftElbow, .rightElbow,
+                                    .leftWrist, .rightWrist,
+                                    .leftHip, .rightHip,
+                                    .leftKnee, .rightKnee,
+                                    .leftAnkle, .rightAnkle
+                                ]
+                                let threshold: Float = 0.3
+                                let isFullBodyDetected = requiredJoints.allSatisfy { joint in
+                                    guard let point = recognizedPoints[joint], point.confidence > threshold else {
+                                        return false
+                                    }
+                                    let devicePoint = CGPoint(x: point.location.x, y: 1 - point.location.y)
+                                    let viewPoint = self.previewLayer.layerPointConverted(fromCaptureDevicePoint: devicePoint)
+                                    return self.cameraView.bounds.contains(viewPoint)
+                                }
+                                if isFullBodyDetected {
+                                    // Start or continue timing detection
+                                    if self.squatDetectionStartTime == nil {
+                                        self.squatDetectionStartTime = Date()
+                                    } else if Date().timeIntervalSince(self.squatDetectionStartTime!) >= 2.0 {
+                                        self.squatReady = true
+                                        self.squatDetectionStartTime = nil
+                                        if self.isSpeechEnabled {
+                                            let utterance = AVSpeechUtterance(string: "운동 시작")
+                                            utterance.voice = AVSpeechSynthesisVoice(language: "ko-KR")
+                                            self.speechSynthesizer.speak(utterance)
+                                        }
+                                        self.startCountdown()
+                                    }
+                                } else {
+                                    // Reset timing if detection lost or low confidence
+                                    self.squatDetectionStartTime = nil
+                                }
+                            } else {
+                                self.squatDetectionStartTime = nil
+                            }
+                            break
+                        }
                         self.analyzeSquat(results: results)
                     case .pushUp:
                         self.analyzePushUp(results: results)
                     case .pullUp:
+                        if !self.pullUpReady {
+                            if let recognizedPoints = try? results.recognizedPoints(.all),
+                               let leftShoulder = recognizedPoints[.leftShoulder],
+                               let rightShoulder = recognizedPoints[.rightShoulder],
+                               let leftWrist = recognizedPoints[.leftWrist],
+                               let rightWrist = recognizedPoints[.rightWrist] {
+                                // Convert to view coordinates
+                                let leftShoulderPos = self.previewLayer.layerPointConverted(fromCaptureDevicePoint: CGPoint(x: leftShoulder.location.x, y: 1 - leftShoulder.location.y))
+                                let rightShoulderPos = self.previewLayer.layerPointConverted(fromCaptureDevicePoint: CGPoint(x: rightShoulder.location.x, y: 1 - rightShoulder.location.y))
+                                let shoulderY = (leftShoulderPos.y + rightShoulderPos.y) / 2
+                                let leftWristPos = self.previewLayer.layerPointConverted(fromCaptureDevicePoint: CGPoint(x: leftWrist.location.x, y: 1 - leftWrist.location.y))
+                                let rightWristPos = self.previewLayer.layerPointConverted(fromCaptureDevicePoint: CGPoint(x: rightWrist.location.x, y: 1 - rightWrist.location.y))
+                                let wristY = (leftWristPos.y + rightWristPos.y) / 2
+                                if wristY < shoulderY - 40 {
+                                    if self.barGrabStartTime == nil {
+                                        self.barGrabStartTime = Date()
+                                    }
+                                    let duration = Date().timeIntervalSince(self.barGrabStartTime!)
+                                    if duration >= 0.7 {
+                                        self.pullUpReady = true
+                                        if self.isSpeechEnabled {
+                                            let utterance = AVSpeechUtterance(string: "운동 시작")
+                                            utterance.voice = AVSpeechSynthesisVoice(language: "ko-KR")
+                                            self.speechSynthesizer.speak(utterance)
+                                        }
+                                        self.startCountdown()
+                                    }
+                                } else {
+                                    self.barGrabStartTime = nil
+                                }
+                            }
+                            break
+                        }
                         self.analyzePullUp(results: results)
                     default:
                         break
