@@ -7,25 +7,12 @@ import Photos
 
 // MARK: - ExerciseViewController 클래스 정의 및 프로토콜 구현
 class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBufferDelegate {
-
-    // MARK: - 열거형 정의
-    enum ExerciseMode {
-        case squat
-        case pushUp
-        case pullUp
-        case none
-    }
-    
-    // MARK: - 기본 프로퍼티 정의
-    var selectedMode: ExerciseMode = .none
-    var captureSession = AVCaptureSession()
-    var currentCameraPosition: AVCaptureDevice.Position = .back
-    var bodyPoseRequest = VNDetectHumanBodyPoseRequest()
-    var previewLayer: AVCaptureVideoPreviewLayer!
-    var overlayLayer = CAShapeLayer()
-    var lastRepetitionTime: Date?
-    
+    // MARK: - 운동 상태 및 피드백 상태
     // 운동 상태 관련 프로퍼티
+    var isStanceFeedbackPlaying = false
+    var hasShownKneeInwardFeedback = false
+    var lastGoodStanceTime: Date?
+    var hasStartedExercise = false
     var isPositionCorrect = false
     var repetitions = 0
     var targetRepetitions: Int = 10 // 초기값, 필요에 따라 설정
@@ -35,7 +22,6 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
     var holdStartTime: Date?
     var currentSet = 1
     var sessionStartTime: Date?
-    var hasStartedExercise = false
     var setSummaries: [String] = []
     var setStartTime: Date?
     var restTimer: Timer?
@@ -43,49 +29,65 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
     var exerciseCompleted = false
     var caloriesBurned: Double = 0.0
     var exerciseStartTime: Date?  // 운동 시작 시간
-    
     var calorieTimer: DispatchSourceTimer?
-
-    // MARK: - Readiness flags
-    var squatReady = false
-    var pullUpReady = false
-    var squatDetectionStartTime: Date?
-
-    // For restoring feedback text after knee-hand separation
-    var previousFeedbackText: String?
-    
-    // Main Timer for 운동 시간 표시
+    // MARK: - Push-Up 미달 피드백 타이밍
+    var lastFeedbackTime: TimeInterval = 0
+    // MARK: - Timer 관련 프로퍼티
     var mainTimer: Timer?
-    
-    // 카운트다운 타이머
     var countdownTimer: Timer?
-    
     // 추가된 활동 시간 추적 변수
     var activeExerciseTime: TimeInterval = 0.0
     var lastActiveTime: Date?
-    
     // 평균 속도 추적 변수
     var totalRepetitionTime: TimeInterval = 0.0
     var repetitionCountForAverage: Int = 0
-    
-    // MARK: - 음성 합성기 및 기타 설정
+    // MARK: - 피드백/음성 관련 프로퍼티
     let speechSynthesizer = AVSpeechSynthesizer()
     var isSpeechEnabled: Bool = true
     var vibrationEnabled: Bool {
         return UserDefaults.standard.bool(forKey: "isVibrationEnabled")
     }
-    
+    // For restoring feedback text after knee-hand separation
+    var previousFeedbackText: String?
+    // MARK: - 운동 준비 상태
+    var squatReady = false
+    var pullUpReady = false
+    var squatDetectionStartTime: Date?
     // 턱걸이 관련 상태 변수
     var isBarGrabbed: Bool = false
     var barGrabStartTime: Date?
     var barReleaseStartTime: Date?
     var lastWristY: CGFloat?
     var lastWristUpdateTime: Date?
-    
     // 녹화 미리보기 저장용 프로퍼티
     var recordedPreviewController: RPPreviewViewController?
+
+    // MARK: - 열거형 정의
+    enum ExerciseMode {
+        case squat
+        case pushUp
+        case pullUp
+    }
+    
+    // MARK: - 기본 프로퍼티 정의
+    var selectedMode: ExerciseMode = .squat  // default; will be overwritten by caller
+    var captureSession = AVCaptureSession()
+    var currentCameraPosition: AVCaptureDevice.Position = .back
+    var bodyPoseRequest = VNDetectHumanBodyPoseRequest()
+    var previewLayer: AVCaptureVideoPreviewLayer!
+    var overlayLayer = CAShapeLayer()
+    var lastRepetitionTime: Date?
     
     // MARK: - UI Elements
+    // Helper method to create standardized UILabels
+    func createLabel(fontSize: CGFloat, weight: UIFont.Weight = .regular, textColor: UIColor = .white, alignment: NSTextAlignment = .center) -> UILabel {
+        let label = UILabel()
+        label.font = UIFont.systemFont(ofSize: fontSize, weight: weight)
+        label.textColor = textColor
+        label.textAlignment = alignment
+        label.translatesAutoresizingMaskIntoConstraints = false
+        return label
+    }
     let switchCameraButton: UIButton = {
         let button = UIButton(type: .system)
         let image = UIImage(systemName: "camera.rotate")
@@ -129,15 +131,11 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
         return label
     }()
     
-    let feedbackMessageLabel: UILabel = {
-        let label = UILabel()
+    lazy var feedbackMessageLabel: UILabel = {
+        let label = createLabel(fontSize: 16, weight: .medium)
         label.text = "운동을 시작하세요!"
-        label.font = UIFont.systemFont(ofSize: 16, weight: .medium)
-        label.textColor = .white
-        label.textAlignment = .center
         label.backgroundColor = .clear
         label.numberOfLines = 0
-        label.translatesAutoresizingMaskIntoConstraints = false
         return label
     }()
     
@@ -145,17 +143,13 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
     let countdownProgressLayer = CAShapeLayer()
     
     // 카운트다운 레이블 (카메라 뷰 중앙)
-    let countdownLabel: UILabel = {
-        let label = UILabel()
+    lazy var countdownLabel: UILabel = {
+        let label = createLabel(fontSize: 80, weight: .bold)
         label.text = ""
-        label.font = UIFont.boldSystemFont(ofSize: 80)
-        label.textColor = .white
-        label.textAlignment = .center
         label.backgroundColor = .clear
         label.layer.cornerRadius = 100
         label.layer.masksToBounds = true
         label.isHidden = true
-        label.translatesAutoresizingMaskIntoConstraints = false
         return label
     }()
     
@@ -202,90 +196,58 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
     }()
     
     // 반복 횟수 제목 레이블
-    let repetitionsTitleLabel: UILabel = {
-        let label = UILabel()
+    lazy var repetitionsTitleLabel: UILabel = {
+        let label = createLabel(fontSize: 16, weight: .regular, textColor: .gray)
         label.text = "반복 횟수"
-        label.font = UIFont.systemFont(ofSize: 16, weight: .regular)
-        label.textColor = .gray
-        label.textAlignment = .center
-        label.translatesAutoresizingMaskIntoConstraints = false
         return label
     }()
     
     // 세트 수 제목 레이블
-    let setsTitleLabel: UILabel = {
-        let label = UILabel()
+    lazy var setsTitleLabel: UILabel = {
+        let label = createLabel(fontSize: 16, weight: .regular, textColor: .gray)
         label.text = "세트 수"
-        label.font = UIFont.systemFont(ofSize: 16, weight: .regular)
-        label.textColor = .gray
-        label.textAlignment = .center
-        label.translatesAutoresizingMaskIntoConstraints = false
         return label
     }()
     
     // 평균 속도 제목 레이블
-    let averageSpeedTitleLabel: UILabel = {
-        let label = UILabel()
+    lazy var averageSpeedTitleLabel: UILabel = {
+        let label = createLabel(fontSize: 16, weight: .regular, textColor: .gray)
         label.text = "평균 속도"
-        label.font = UIFont.systemFont(ofSize: 16, weight: .regular)
-        label.textColor = .gray
-        label.textAlignment = .center
-        label.translatesAutoresizingMaskIntoConstraints = false
         return label
     }()
     
     // 칼로리 제목 레이블
-    let caloriesTitleLabel: UILabel = {
-        let label = UILabel()
+    lazy var caloriesTitleLabel: UILabel = {
+        let label = createLabel(fontSize: 16, weight: .regular, textColor: .gray)
         label.text = "칼로리"
-        label.font = UIFont.systemFont(ofSize: 16, weight: .regular)
-        label.textColor = .gray
-        label.textAlignment = .center
-        label.translatesAutoresizingMaskIntoConstraints = false
         return label
     }()
     
     // 반복 횟수 값 레이블
-    let repetitionsValueLabel: UILabel = {
-        let label = UILabel()
+    lazy var repetitionsValueLabel: UILabel = {
+        let label = createLabel(fontSize: 16, weight: .bold)
         label.text = "0 / 10"
-        label.font = UIFont.boldSystemFont(ofSize: 16)
-        label.textColor = .white
-        label.textAlignment = .center
-        label.translatesAutoresizingMaskIntoConstraints = false
         return label
     }()
     
     // 세트 수 값 레이블
-    let setsValueLabel: UILabel = {
-        let label = UILabel()
+    lazy var setsValueLabel: UILabel = {
+        let label = createLabel(fontSize: 16, weight: .bold)
         label.text = "1 / 3"
-        label.font = UIFont.boldSystemFont(ofSize: 16)
-        label.textColor = .white
-        label.textAlignment = .center
-        label.translatesAutoresizingMaskIntoConstraints = false
         return label
     }()
     
     // 평균 속도 값 레이블
-    let averageSpeedValueLabel: UILabel = {
-        let label = UILabel()
+    lazy var averageSpeedValueLabel: UILabel = {
+        let label = createLabel(fontSize: 16, weight: .bold)
         label.text = "0.0초"
-        label.font = UIFont.boldSystemFont(ofSize: 16)
-        label.textColor = .white
-        label.textAlignment = .center
-        label.translatesAutoresizingMaskIntoConstraints = false
         return label
     }()
     
     // 칼로리 값 레이블
-    let caloriesValueLabel: UILabel = {
-        let label = UILabel()
+    lazy var caloriesValueLabel: UILabel = {
+        let label = createLabel(fontSize: 16, weight: .bold)
         label.text = "0.00 kcal"
-        label.font = UIFont.boldSystemFont(ofSize: 16)
-        label.textColor = .white
-        label.textAlignment = .center
-        label.translatesAutoresizingMaskIntoConstraints = false
         return label
     }()
     
@@ -336,7 +298,7 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
         } else {
             isSpeechEnabled = true
         }
-        
+        speechSynthesizer.delegate = self
         setupUI()
         setupCamera()
         setupCountdownProgress()
@@ -361,11 +323,7 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
             restTime = savedRestTime
         }
         
-        if selectedMode != .none {
-            startExercise()
-        } else {
-            feedbackMessageLabel.text = "운동 모드를 선택하세요."
-        }
+        startExercise()
     }
     
     override func viewDidLayoutSubviews() {
@@ -506,11 +464,18 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
         soundToggleButton.setImage(image, for: .normal)
     }
     
+    // MARK: - 녹화 미리보기 컨트롤러 설정 헬퍼
+    func configureRecordedPreviewController(_ controller: RPPreviewViewController) {
+        controller.previewControllerDelegate = self
+        self.recordedPreviewController = controller
+    }
+
     // MARK: - 녹화 토글 메서드 (ReplayKit)
     @objc func toggleRecording() {
         let recorder = RPScreenRecorder.shared()
         if !recorder.isRecording {
-            recorder.startRecording(withMicrophoneEnabled: true) { error in
+            recorder.isMicrophoneEnabled = true
+            recorder.startRecording { error in
                 if let _ = error {
                     // 오류 처리
                 } else {
@@ -530,9 +495,7 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
                     self.recordToggleButton.setImage(image, for: .normal)
                 }
                 if let previewController = previewController {
-                    previewController.previewControllerDelegate = self
-                    // 미리보기 컨트롤러는 바로 표시하지 않고 저장; 사용자가 저장 선택 시 아래 delegate 메서드로 처리
-                    self.recordedPreviewController = previewController
+                    self.configureRecordedPreviewController(previewController)
                 }
             }
         }
@@ -626,21 +589,6 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
         captureSession.commitConfiguration()
     }
     
-    // MARK: - 운동 모드 설정 메서드
-    func setupExerciseMode() {
-        if !exerciseCompleted {
-            switch selectedMode {
-            case .squat:
-                feedbackMessageLabel.text = "스쿼트 모드로 시작하세요!"
-            case .pushUp:
-                feedbackMessageLabel.text = "푸쉬업 모드로 시작하세요!"
-            case .pullUp:
-                feedbackMessageLabel.text = "봉을 잡으세요!"
-            case .none:
-                feedbackMessageLabel.text = "운동 모드를 선택하세요."
-            }
-        }
-    }
     
     // MARK: - 앱 라이프사이클 핸들러
     @objc func appWillResignActive() {
@@ -657,11 +605,6 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
     
     // MARK: - 운동 시작 메서드
     func startExercise() {
-        guard selectedMode != .none else {
-            feedbackMessageLabel.text = "운동 모드를 선택하세요."
-            return
-        }
-        
         currentSet = 1
         repetitions = 0
         sessionStartTime = nil
@@ -691,7 +634,7 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
 
         switch selectedMode {
         case .squat:
-            feedbackMessageLabel.text = "전신을 인식 중입니다..."
+            feedbackMessageLabel.text = "화면에전신이 보이게 서주세요!"
             squatReady = false
             cameraView.isHidden = false
             captureSession.startRunning()
@@ -700,9 +643,13 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
             pullUpReady = false
             cameraView.isHidden = false
             captureSession.startRunning()
-        default:
+        case .pushUp:
+            feedbackMessageLabel.text = "카메라를 주시한 상태로 엎드리세요"
+            hasStartedExercise = false
+            cameraView.isHidden = false
             captureSession.startRunning()
-            startCountdown()
+        
+            break
         }
     }
     
@@ -731,8 +678,9 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
                 self.countdownTimer = nil
                 self.countdownLabel.isHidden = true
                 self.cameraView.isHidden = false
-                self.captureSession.startRunning()
-                self.setupExerciseMode()
+                DispatchQueue.global(qos: .userInitiated).async {
+                    self.captureSession.startRunning()
+                }
                 self.feedbackMessageLabel.text = (self.selectedMode == .pullUp) ? "봉을 잡으세요!" : "운동을 시작하세요!"
                 self.startCalorieTimer()
                 self.startMainTimer()
@@ -748,9 +696,8 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
         case .squat: exerciseName = "스쿼트"
         case .pushUp: exerciseName = "푸쉬업"
         case .pullUp: exerciseName = "턱걸이"
-        case .none: exerciseName = "선택되지 않음"
-        }
         
+        }
         let summary: [String: Any] = [
             "date": endTime,
             "exerciseType": exerciseName,
@@ -769,13 +716,7 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
     
     // MARK: - 운동 정지 액션
     @objc func stopExercise() {
-        captureSession.stopRunning()
-        stopCalorieTimer()
-        mainTimer?.invalidate()
-        mainTimer = nil
-        countdownTimer?.invalidate()
-        countdownTimer = nil
-        cameraView.isHidden = true
+        stopCameraAndTimers()
         feedbackMessageLabel.text = "운동 종료"
         UIApplication.shared.isIdleTimerDisabled = false
         
@@ -790,9 +731,7 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
                     self.recordToggleButton.setImage(image, for: .normal)
                 }
                 if let previewController = previewController {
-                    previewController.previewControllerDelegate = self
-                    // 미리보기 컨트롤러는 바로 표시하지 않고 저장; 사용자가 저장 선택 시 아래 delegate 메서드로 처리
-                    self.recordedPreviewController = previewController
+                    self.configureRecordedPreviewController(previewController)
                 }
                 self.displaySessionSummary()
                 self.saveExerciseSummary()
@@ -801,6 +740,16 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
             self.displaySessionSummary()
             self.saveExerciseSummary()
         }
+    }
+    // MARK: - 카메라 및 타이머 정지 헬퍼
+    func stopCameraAndTimers() {
+        captureSession.stopRunning()
+        stopCalorieTimer()
+        mainTimer?.invalidate()
+        mainTimer = nil
+        countdownTimer?.invalidate()
+        countdownTimer = nil
+        cameraView.isHidden = true
     }
     
     // MARK: - 일시정지 및 재시작 액션
@@ -839,7 +788,7 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
                 case .squat: return "스쿼트"
                 case .pushUp: return "푸쉬업"
                 case .pullUp: return "턱걸이"
-                default: return "선택되지 않음"
+                
                 }
             }(),
             "sets": currentSet,
@@ -918,7 +867,7 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
             case .squat: return 5.0
             case .pushUp: return 3.8
             case .pullUp: return 8.0
-            default: return 0.0
+            
             }
         }()
         
@@ -978,8 +927,15 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
     func speakNumber(count: Int) {
         guard isSpeechEnabled else { return }
         let numberString = koreanNumber(for: count)
-        let utterance = AVSpeechUtterance(string: numberString)
+        speak(numberString)
+    }
+    // MARK: - 음성 출력 헬퍼 메서드
+    func speak(_ text: String) {
+        guard isSpeechEnabled else { return }
+        let utterance = AVSpeechUtterance(string: text)
         utterance.voice = AVSpeechSynthesisVoice(language: "ko-KR")
+        utterance.preUtteranceDelay = 0
+        utterance.postUtteranceDelay = 0
         speechSynthesizer.speak(utterance)
     }
     
@@ -995,11 +951,6 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
         } else {
             return (tens < tensWords.count && ones < onesWords.count) ? tensWords[tens] + onesWords[ones] : "\(count)"
         }
-    }
-    
-    // MARK: - 라벨 색상 업데이트 (필요 시)
-    func updateInfoLabelsColor(isActive: Bool) {
-        // 정보 제목은 회색, 정보 값은 흰색 (변경 없음)
     }
     
     // MARK: - 휴식 타이머 & 다음 세트 시작
@@ -1044,12 +995,11 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
         infoStackView.layoutIfNeeded()
         updateFeedbackMessage(text: "다음 세트 시작!")
         setStartTime = Date()
-        
+
         if currentSet > targetSets {
             stopExercise()
         } else {
             cameraView.isHidden = false
-            setupExerciseMode()
             if selectedMode == .pullUp {
                 isBarGrabbed = false
                 barGrabStartTime = nil
@@ -1088,6 +1038,55 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
     // MARK: - 운동 측정 메소드 (스쿼트, 푸쉬업, 턱걸이 등)
     func analyzeSquat(results: VNHumanBodyPoseObservation) {
         guard let recognizedPoints = try? results.recognizedPoints(.all) else { return }
+        // 1. Check ankle-to-ankle width vs shoulder width (stance check) BEFORE count logic
+        if let leftAnkle = recognizedPoints[.leftAnkle],
+           let rightAnkle = recognizedPoints[.rightAnkle],
+           let leftShoulder = recognizedPoints[.leftShoulder],
+           let rightShoulder = recognizedPoints[.rightShoulder] {
+
+            let laPos = previewLayer.layerPointConverted(fromCaptureDevicePoint: CGPoint(x: leftAnkle.location.x, y: 1 - leftAnkle.location.y))
+            let raPos = previewLayer.layerPointConverted(fromCaptureDevicePoint: CGPoint(x: rightAnkle.location.x, y: 1 - rightAnkle.location.y))
+            let lsPos = previewLayer.layerPointConverted(fromCaptureDevicePoint: CGPoint(x: leftShoulder.location.x, y: 1 - leftShoulder.location.y))
+            let rsPos = previewLayer.layerPointConverted(fromCaptureDevicePoint: CGPoint(x: rightShoulder.location.x, y: 1 - rightShoulder.location.y))
+
+            let ankleWidth = abs(laPos.x - raPos.x)
+            let shoulderWidth = abs(lsPos.x - rsPos.x)
+
+            let narrowStanceThreshold = shoulderWidth * 0.8
+            if ankleWidth < narrowStanceThreshold {
+                self.lastGoodStanceTime = nil
+                DispatchQueue.main.async {
+                    if self.previousFeedbackText == nil {
+                        self.previousFeedbackText = self.feedbackMessageLabel.text
+                    }
+                    // Only update label if the text is changing to the stance feedback
+                    if self.feedbackMessageLabel.text != "다리를 어깨 넓이로 벌려주세요" {
+                        self.feedbackMessageLabel.text = "다리를 어깨 넓이로 벌려주세요"
+                    }
+                }
+                // Play sound every time the label changes to the feedback text and not already playing
+                if self.isSpeechEnabled && !self.isStanceFeedbackPlaying {
+                    self.isStanceFeedbackPlaying = true
+                    self.speak("다리를 어깨 넓이로 벌려주세요")
+                }
+                return
+            } else {
+                if self.lastGoodStanceTime == nil {
+                    self.lastGoodStanceTime = Date()
+                }
+
+                if let prev = self.previousFeedbackText,
+                   prev == "다리를 어깨 넓이로 벌려주세요",
+                   let lastTime = self.lastGoodStanceTime,
+                   Date().timeIntervalSince(lastTime) > 1.0,
+                   !self.speechSynthesizer.isSpeaking {
+                    DispatchQueue.main.async {
+                        self.feedbackMessageLabel.text = "운동을 시작하세요!"
+                    }
+                    self.previousFeedbackText = nil
+                }
+            }
+        }
         // 손을 무릎에 붙이고 스쿼트 시 카운트 무효화 및 피드백
         if let leftWrist = recognizedPoints[.leftWrist],
            let rightWrist = recognizedPoints[.rightWrist],
@@ -1110,9 +1109,7 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
                     self.feedbackMessageLabel.text = "팔을 가슴쪽에 모아주세요."
                 }
                 if self.isSpeechEnabled {
-                    let utterance = AVSpeechUtterance(string: "팔을 가슴쪽에 모아주세요")
-                    utterance.voice = AVSpeechSynthesisVoice(language: "ko-KR")
-                    self.speechSynthesizer.speak(utterance)
+                    self.speak("팔을 가슴쪽에 모아주세요")
                 }
                 return
             }
@@ -1125,18 +1122,50 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
                 previousFeedbackText = nil
             }
         }
+        // Knee-inward feedback: trigger if knees are within 30 points on x-axis
+        if let leftKnee = recognizedPoints[.leftKnee],
+           let rightKnee = recognizedPoints[.rightKnee] {
+
+            let lkPos = previewLayer.layerPointConverted(fromCaptureDevicePoint: CGPoint(x: leftKnee.location.x, y: 1 - leftKnee.location.y))
+            let rkPos = previewLayer.layerPointConverted(fromCaptureDevicePoint: CGPoint(x: rightKnee.location.x, y: 1 - rightKnee.location.y))
+            let kneeDistanceX = abs(lkPos.x - rkPos.x)
+
+            if kneeDistanceX < 40 {
+                if !self.hasShownKneeInwardFeedback {
+                    self.hasShownKneeInwardFeedback = true
+                    DispatchQueue.main.async {
+                        self.feedbackMessageLabel.text = "무릎을 바깥쪽으로 열어주세요"
+                    }
+                    if self.isSpeechEnabled && !self.speechSynthesizer.isSpeaking {
+                        self.speak("무릎을 바깥쪽으로 벌리세요")
+                    }
+                }
+            } else {
+                if self.hasShownKneeInwardFeedback {
+                    self.hasShownKneeInwardFeedback = false
+                    DispatchQueue.main.async {
+                        if let prev = self.previousFeedbackText {
+                            self.feedbackMessageLabel.text = prev
+                        } else {
+                            self.feedbackMessageLabel.text = "운동을 시작하세요!"
+                        }
+                    }
+                }
+            }
+        }
+        // Continue with squat repetition logic
         if let leftKnee = recognizedPoints[.leftKnee],
            let rightKnee = recognizedPoints[.rightKnee],
            let leftHip = recognizedPoints[.leftHip],
            let rightHip = recognizedPoints[.rightHip] {
-            
+
             let leftKneeAngle = calculateAngle(point1: leftHip, point2: leftKnee)
             let rightKneeAngle = calculateAngle(point1: rightHip, point2: rightKnee)
-            
+
             if leftKneeAngle < 120 || rightKneeAngle < 120 {
                 hasStartedExercise = true
             }
-            
+
             if hasStartedExercise {
                 if leftKneeAngle < 90 && rightKneeAngle < 90 {
                     if !isPositionCorrect {
@@ -1159,34 +1188,95 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
         }
     }
     
+    // MARK: - Push-Up 분석 및 카운트 로직 (개선된 피드백 포함)
     func analyzePushUp(results: VNHumanBodyPoseObservation) {
         guard let recognizedPoints = try? results.recognizedPoints(.all) else { return }
-        if let leftElbow = recognizedPoints[.leftElbow],
-           let rightElbow = recognizedPoints[.rightElbow],
-           let leftShoulder = recognizedPoints[.leftShoulder],
-           let rightShoulder = recognizedPoints[.rightShoulder] {
-            
-            let leftElbowAngle = calculateAngle(point1: leftShoulder, point2: leftElbow)
-            let rightElbowAngle = calculateAngle(point1: rightShoulder, point2: rightElbow)
-            
-            if leftElbowAngle < 90 && rightElbowAngle < 90 {
-                if !isPositionCorrect {
-                    isPositionCorrect = true
-                    holdStartTime = Date()
-                }
-            } else {
-                if isPositionCorrect {
-                    let holdDuration = Date().timeIntervalSince(holdStartTime ?? Date())
-                    if holdDuration >= 1.0 {
-                        if vibrationEnabled {
-                            AudioServicesPlaySystemSound(kSystemSoundID_Vibrate)
-                        }
-                        countRepetition()
-                    }
-                    isPositionCorrect = false
-                }
+        // Insert facial presence/confidence check before main logic
+        guard let leftEye = recognizedPoints[.leftEye],
+              let rightEye = recognizedPoints[.rightEye],
+              let nose = recognizedPoints[.nose],
+              leftEye.confidence > 0.3,
+              rightEye.confidence > 0.3,
+              nose.confidence > 0.3 else {
+            DispatchQueue.main.async {
+                self.feedbackMessageLabel.text = "고개를 들어 정면을 주시하세요"
+            }
+            if self.isSpeechEnabled && !self.speechSynthesizer.isSpeaking {
+                self.speak("고개를 들어 정면을 주시하세요")
+            }
+            return
+        }
+        // Restore feedback label if it was showing "고개를 들어 정면을 주시하세요"
+        if self.feedbackMessageLabel.text == "고개를 들어 정면을 주시하세요" {
+            DispatchQueue.main.async {
+                self.feedbackMessageLabel.text = "운동을 시작하세요!"
             }
         }
+
+        guard let leftElbow = recognizedPoints[.leftElbow],
+              let rightElbow = recognizedPoints[.rightElbow],
+              let leftShoulder = recognizedPoints[.leftShoulder],
+              let rightShoulder = recognizedPoints[.rightShoulder],
+              let leftWrist = recognizedPoints[.leftWrist],
+              let rightWrist = recognizedPoints[.rightWrist] else {
+            return
+        }
+
+        // 좌표 변환
+        let leftElbowY = previewLayer.layerPointConverted(fromCaptureDevicePoint: CGPoint(x: leftElbow.location.x, y: 1 - leftElbow.location.y)).y
+        let rightElbowY = previewLayer.layerPointConverted(fromCaptureDevicePoint: CGPoint(x: rightElbow.location.x, y: 1 - rightElbow.location.y)).y
+        let noseY = previewLayer.layerPointConverted(fromCaptureDevicePoint: CGPoint(x: nose.location.x, y: 1 - nose.location.y)).y
+
+        let leftElbowAngle = computeElbowAngle(shoulder: leftShoulder, elbow: leftElbow, wrist: leftWrist)
+        let rightElbowAngle = computeElbowAngle(shoulder: rightShoulder, elbow: rightElbow, wrist: rightWrist)
+        let isFullyExtended = leftElbowAngle > 160 && rightElbowAngle > 160
+
+        // 개선된 피드백 로직
+        // --- BEGIN REFACTORED FEEDBACK LOGIC ---
+        let elbowYThreshold = max(leftElbowY, rightElbowY)
+        let isCountingPosition = noseY > elbowYThreshold
+
+        // 조건 미달 하강 체크: 코가 팔꿈치보다 충분히 아래로 가지 않고 내려갔다가 다시 올라온 경우
+        let currentTime = Date().timeIntervalSince1970
+        if !isCountingPosition && isFullyExtended && wasInShallowZone {
+            if currentTime - lastFeedbackTime > 2.0 {
+                feedbackMessageLabel.text = "조금 더 내려가셔야 합니다"
+                feedbackMessageLabel.isHidden = false
+                speakFeedback("조금 더 내려가셔야 합니다")
+                lastFeedbackTime = currentTime
+            }
+            wasInShallowZone = false
+        }
+
+        // 하강 중 조건 미달 지점에 도달한 적 있는지 플래그 설정
+        if !isCountingPosition && !isFullyExtended {
+            wasInShallowZone = true
+        }
+
+        // 카운팅 조건이 충족되었을 때는 피드백 방지 및 플래그 초기화
+        if isCountingPosition {
+            wasInShallowZone = false
+            if !isPositionCorrect {
+                isPositionCorrect = true
+                if vibrationEnabled {
+                    AudioServicesPlaySystemSound(kSystemSoundID_Vibrate)
+                }
+                countRepetition()
+                // Clear feedback when repetition is counted
+                feedbackMessageLabel.text = ""
+                feedbackMessageLabel.isHidden = true
+            }
+        } else if isFullyExtended {
+            isPositionCorrect = false
+        }
+        // --- END REFACTORED FEEDBACK LOGIC ---
+    }
+    // MARK: - Push-Up 미달 피드백 음성 출력
+    func speakFeedback(_ text: String) {
+        let utterance = AVSpeechUtterance(string: text)
+        utterance.voice = AVSpeechSynthesisVoice(language: "ko-KR")
+        let synthesizer = AVSpeechSynthesizer()
+        synthesizer.speak(utterance)
     }
     
     func analyzePullUp(results: VNHumanBodyPoseObservation) {
@@ -1345,13 +1435,11 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
                                     // Start or continue timing detection
                                     if self.squatDetectionStartTime == nil {
                                         self.squatDetectionStartTime = Date()
-                                    } else if Date().timeIntervalSince(self.squatDetectionStartTime!) >= 2.0 {
+                                    } else if Date().timeIntervalSince(self.squatDetectionStartTime!) >= 1.0 {
                                         self.squatReady = true
                                         self.squatDetectionStartTime = nil
                                         if self.isSpeechEnabled {
-                                            let utterance = AVSpeechUtterance(string: "운동 시작")
-                                            utterance.voice = AVSpeechSynthesisVoice(language: "ko-KR")
-                                            self.speechSynthesizer.speak(utterance)
+                                            self.speak("운동 시작")
                                         }
                                         self.startCountdown()
                                     }
@@ -1366,6 +1454,47 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
                         }
                         self.analyzeSquat(results: results)
                     case .pushUp:
+                        // Insert comprehensive readiness check before analyzePushUp
+                        if !self.hasStartedExercise {
+                            if let recognizedPoints = try? results.recognizedPoints(.all),
+                               let leftShoulder = recognizedPoints[.leftShoulder],
+                               let rightShoulder = recognizedPoints[.rightShoulder],
+                               let nose = recognizedPoints[.nose],
+                               let leftEye = recognizedPoints[.leftEye],
+                               let rightEye = recognizedPoints[.rightEye],
+                               leftShoulder.confidence > 0.3, rightShoulder.confidence > 0.3,
+                               nose.confidence > 0.3, leftEye.confidence > 0.3, rightEye.confidence > 0.3 {
+                                
+                                let leftShoulderPos = self.previewLayer.layerPointConverted(fromCaptureDevicePoint: CGPoint(x: leftShoulder.location.x, y: 1 - leftShoulder.location.y))
+                                let rightShoulderPos = self.previewLayer.layerPointConverted(fromCaptureDevicePoint: CGPoint(x: rightShoulder.location.x, y: 1 - rightShoulder.location.y))
+                                let nosePos = self.previewLayer.layerPointConverted(fromCaptureDevicePoint: CGPoint(x: nose.location.x, y: 1 - nose.location.y))
+                                let leftEyePos = self.previewLayer.layerPointConverted(fromCaptureDevicePoint: CGPoint(x: leftEye.location.x, y: 1 - leftEye.location.y))
+                                let rightEyePos = self.previewLayer.layerPointConverted(fromCaptureDevicePoint: CGPoint(x: rightEye.location.x, y: 1 - rightEye.location.y))
+
+                                if self.cameraView.bounds.contains(leftShoulderPos)
+                                    && self.cameraView.bounds.contains(rightShoulderPos)
+                                    && self.cameraView.bounds.contains(nosePos)
+                                    && self.cameraView.bounds.contains(leftEyePos)
+                                    && self.cameraView.bounds.contains(rightEyePos) {
+                                    if self.squatDetectionStartTime == nil {
+                                        self.squatDetectionStartTime = Date()
+                                    } else if Date().timeIntervalSince(self.squatDetectionStartTime!) >= 1.0 {
+                                        self.hasStartedExercise = true
+                                        self.squatDetectionStartTime = nil
+                                        if self.isSpeechEnabled {
+                                            self.speak("운동 시작")
+                                        }
+                                        self.startCountdown()
+                                    }
+                                    return
+                                }
+                            }
+                            self.squatDetectionStartTime = nil
+                            DispatchQueue.main.async {
+                                self.feedbackMessageLabel.text = "카메라를 주시한 상태로 엎드리세요"
+                            }
+                            return
+                        }
                         self.analyzePushUp(results: results)
                     case .pullUp:
                         if !self.pullUpReady {
@@ -1389,9 +1518,7 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
                                     if duration >= 0.7 {
                                         self.pullUpReady = true
                                         if self.isSpeechEnabled {
-                                            let utterance = AVSpeechUtterance(string: "운동 시작")
-                                            utterance.voice = AVSpeechSynthesisVoice(language: "ko-KR")
-                                            self.speechSynthesizer.speak(utterance)
+                                            self.speak("운동 시작")
                                         }
                                         self.startCountdown()
                                     }
@@ -1402,7 +1529,7 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
                             break
                         }
                         self.analyzePullUp(results: results)
-                    default:
+                    
                         break
                     }
                 }
@@ -1556,21 +1683,30 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
                 exerciseType = "푸쉬업"
             case .pullUp:
                 exerciseType = "턱걸이"
-            default:
-                exerciseType = "운동기록"
+            
             }
             let outputURL = videosDirectory.appendingPathComponent("\(exerciseType)_\(Date().timeIntervalSince1970).mp4")
             exportSession.outputURL = outputURL
             exportSession.outputFileType = .mp4
-            exportSession.exportAsynchronously {
-                if exportSession.status == .completed {
+            // Modern async/await export
+            if #available(iOS 15.0, *) {
+                Task {
+                    await exportSession.export()
                     DispatchQueue.main.async {
                         print("Video saved to Documents/Videos: \(outputURL)")
-                        // export 완료 후 갤러리 업데이트 알림 전송
                         NotificationCenter.default.post(name: NSNotification.Name("VideoExportCompleted"), object: nil)
                     }
-                } else if let error = exportSession.error {
-                    print("Export error: \(error.localizedDescription)")
+                }
+            } else {
+                exportSession.exportAsynchronously {
+                    if exportSession.status == .completed {
+                        DispatchQueue.main.async {
+                            print("Video saved to Documents/Videos: \(outputURL)")
+                            NotificationCenter.default.post(name: NSNotification.Name("VideoExportCompleted"), object: nil)
+                        }
+                    } else if let error = exportSession.error {
+                        print("Export error: \(error.localizedDescription)")
+                    }
                 }
             }
         }
@@ -1586,10 +1722,10 @@ extension ExerciseViewController: RPPreviewViewControllerDelegate {
     
     // 사용자가 미리보기에서 '저장' 버튼을 누르면 호출 (activityTypes를 문자열 리터럴로 체크)
     func previewController(_ previewController: RPPreviewViewController, didFinishWithActivityTypes activityTypes: Set<String>) {
-        let addToPhotosType = "com.apple.UIKit.activity.addToPhotos"
+        let addToPhotosType = UIActivity.ActivityType(rawValue: "com.apple.UIKit.activity.addToPhotos")
         if #available(iOS 15.0, *) {
             if activityTypes.contains(UIActivity.ActivityType.saveToCameraRoll.rawValue) ||
-               activityTypes.contains(addToPhotosType) {
+               activityTypes.contains(addToPhotosType.rawValue) {
                 self.saveVideoToDocuments()
             }
         } else {
@@ -1601,3 +1737,25 @@ extension ExerciseViewController: RPPreviewViewControllerDelegate {
         self.recordedPreviewController = nil
     }
 }
+
+// MARK: - AVSpeechSynthesizerDelegate 확장
+extension ExerciseViewController: AVSpeechSynthesizerDelegate {
+    func speechSynthesizer(_ synthesizer: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+        self.isStanceFeedbackPlaying = false
+    }
+}
+
+// MARK: - Push-Up shallow zone flag
+extension ExerciseViewController {
+    // 푸쉬업 미달 하강 플래그
+    var wasInShallowZone: Bool {
+        get {
+            return objc_getAssociatedObject(self, &wasInShallowZoneKey) as? Bool ?? false
+        }
+        set {
+            objc_setAssociatedObject(self, &wasInShallowZoneKey, newValue, .OBJC_ASSOCIATION_RETAIN_NONATOMIC)
+        }
+    }
+}
+
+private var wasInShallowZoneKey: UInt8 = 0

@@ -1,6 +1,92 @@
 import UIKit  // 차트
 
+
 import DGCharts
+
+// ---- RoundedBarChartRenderer --------------------------------------------
+/// DGCharts 기본 BarChartRenderer 를 확장해 막대 상단 모서리를 둥글게 그려준다.
+/// (코드 출처: 커스텀 구현)
+final class RoundedBarChartRenderer: BarChartRenderer {
+    private let cornerRadius: CGFloat
+    
+    init(dataProvider: BarChartDataProvider,
+         animator: Animator,
+         viewPortHandler: ViewPortHandler,
+         cornerRadius: CGFloat = 4.0) {
+        self.cornerRadius = cornerRadius
+        super.init(dataProvider: dataProvider,
+                   animator: animator,
+                   viewPortHandler: viewPortHandler)
+    }
+    
+    override func drawDataSet(context: CGContext,
+                              dataSet: BarChartDataSetProtocol,
+                              index: Int) {
+        guard let dataProvider = dataProvider,
+              let barData = dataProvider.barData,
+              let dataSet = dataSet as? BarChartDataSet else { return }
+        
+        let trans = dataProvider.getTransformer(forAxis: dataSet.axisDependency)
+        let phaseY = CGFloat(animator.phaseY)
+        let barWidthHalf = CGFloat(barData.barWidth / 2.0)
+        let valueFont = dataSet.valueFont
+        let valueFormatter = dataSet.valueFormatter ?? DefaultValueFormatter(decimals: 0)
+         
+        // 반복: 데이터셋 내 모든 항목
+        for j in 0 ..< dataSet.entryCount {
+            guard let e = dataSet.entryForIndex(j) as? BarChartDataEntry else { continue }
+            
+            let x = CGFloat(e.x)
+            let y = CGFloat(e.y) * phaseY
+            
+            // 원본(값) 좌표 → 픽셀 좌표로 변환하기 위한 사각형
+            var rect = CGRect(x: x - barWidthHalf,
+                              y: 0,
+                              width: barWidthHalf * 2.0,
+                              height: y)
+            trans.rectValueToPixel(&rect)
+            
+            // 화면 밖이면 건너뜀
+            if !viewPortHandler.isInBoundsLeft(rect.maxX) { continue }
+            if !viewPortHandler.isInBoundsRight(rect.minX) { break }
+            
+            // 상단 두 모서리만 둥글게
+            let path = UIBezierPath(roundedRect: rect,
+                                    byRoundingCorners: [.topLeft, .topRight],
+                                    cornerRadii: CGSize(width: cornerRadius,
+                                                        height: cornerRadius))
+            
+            context.saveGState()
+            context.addPath(path.cgPath)
+            context.setFillColor(dataSet.color(atIndex: j).cgColor)
+            context.fillPath()
+            context.restoreGState()
+            
+            // 값 라벨 그리기
+            let valText = valueFormatter.stringForValue(e.y,
+                                                       entry: e,
+                                                       dataSetIndex: index,
+                                                       viewPortHandler: viewPortHandler)
+            let paragraphStyle = NSMutableParagraphStyle()
+            paragraphStyle.alignment = .center
+            
+            let attributes: [NSAttributedString.Key: Any] = [
+                .font: valueFont,
+                .foregroundColor: dataSet.valueTextColorAt(j),
+                .paragraphStyle: paragraphStyle
+            ]
+            
+            let textSize = valText.size(withAttributes: attributes)
+            // 막대 상단 바로 위에 그리도록 위치 지정 (반경 2pt 여유)
+            let textPos = CGPoint(
+                x: rect.midX - textSize.width / 2.0,
+                y: rect.origin.y - textSize.height - 2
+            )
+            valText.draw(at: textPos, withAttributes: attributes)
+        }
+    }
+}
+// -------------------------------------------------------------------------
 
 /// 값 라벨을 소수점 없이 정수로 표시하기 위한 포매터
 final class IntValueFormatter: NSObject, ValueFormatter {
@@ -17,19 +103,10 @@ class MonthlyDetailViewController: UIViewController {
     
     // MARK: - UI 요소
     // 기존 하단 닫기 버튼 제거 → 네비게이션 바 뒤로 버튼으로 대체
-    private let closeButton: UIButton? = nil
     let segmentedControl = UISegmentedControl(items: ["일", "주", "월", "년"])
-
-    /// 네비게이션 바가 없을 때만 보여 줄 임시 타이틀 라벨
-    private let fallbackTitleLabel: UILabel = {
-        let lbl = UILabel()
-        lbl.text = "통계 차트"
-        lbl.font = .boldSystemFont(ofSize: 24)
-        lbl.textColor = .white
-        lbl.textAlignment = .left
-        lbl.translatesAutoresizingMaskIntoConstraints = false
-        return lbl
-    }()
+    // 토글: 개수/칼로리 전환 버튼
+    // 네비게이션바 버튼 제거, 대신 인라인 버튼 사용
+    private var showCalories = false
     
     let chartScrollView = UIScrollView()
     let chartStackView  = UIStackView()
@@ -38,10 +115,15 @@ class MonthlyDetailViewController: UIViewController {
     let squatCard   = UIView()
     let pushUpCard  = UIView()
     let pullUpCard  = UIView()
-    
+
     let squatChart  = BarChartView()
     let pushUpChart = BarChartView()
     let pullUpChart = BarChartView()
+
+    // 각 운동별 서브타이틀 레이블
+    let squatSubtitleLabel = UILabel()
+    let pushUpSubtitleLabel = UILabel()
+    let pullUpSubtitleLabel = UILabel()
     
     // 전달받은 기준 날짜
     var currentMonth: Date?
@@ -54,15 +136,12 @@ class MonthlyDetailViewController: UIViewController {
         super.viewDidLoad()
         // 화면을 항상 다크 모드로 고정
         overrideUserInterfaceStyle = .dark
+        // 네비게이션 바도 강제로 다크 모드로 고정
+        navigationController?.navigationBar.overrideUserInterfaceStyle = .dark
         view.backgroundColor = .black
-        
+
         configureNavigationBar()
         setupUI()
-        // 왼쪽 가장자리 스와이프 → 뒤로가기 (모달/네비 모두 지원)
-        let edgeSwipe = UIScreenEdgePanGestureRecognizer(target: self,
-                                                         action: #selector(closeButtonTapped))
-        edgeSwipe.edges = .left
-        view.addGestureRecognizer(edgeSwipe)
         updateAllCharts(for: initialSegmentIndex, baseDate: selectedDate)
     }
     
@@ -78,15 +157,23 @@ class MonthlyDetailViewController: UIViewController {
         navigationController?.navigationBar.titleTextAttributes = [.foregroundColor: UIColor.white]
 
         let appear = UINavigationBarAppearance()
-        appear.configureWithTransparentBackground()   // 투명 배경
-        appear.backgroundColor = .clear
-        appear.shadowColor = .clear                   // 하단 구분선 제거
+        appear.configureWithOpaqueBackground()       // 불투명 배경
+        appear.backgroundColor = .black             // 다크 배경 고정
+        appear.shadowColor = .clear                 // 하단 구분선 제거
         appear.titleTextAttributes = [.foregroundColor: UIColor.white]
 
         let navBar = navigationController?.navigationBar
-        navBar?.standardAppearance    = appear
-        navBar?.scrollEdgeAppearance  = appear
-        navBar?.compactAppearance     = appear
+        navBar?.standardAppearance   = appear
+        navBar?.scrollEdgeAppearance = appear
+        navBar?.compactAppearance    = appear
+        navBar?.barTintColor         = .black       // 바 자체를 검정으로 고정
+        navBar?.tintColor            = .white       // 뒤로 버튼 색을 흰색으로
+        navBar?.isTranslucent        = false        // 반투명 비활성화
+        // 바 스타일을 검정으로 설정하여 항상 흰색 제목 보이도록
+        navBar?.barStyle = .black
+
+        // appearance 설정 이후에도 네비게이션 바를 다크 모드로 강제
+        navigationController?.overrideUserInterfaceStyle = .dark
 
         let backItem = UIBarButtonItem(title: "뒤로",
                                        style: .plain,
@@ -97,27 +184,28 @@ class MonthlyDetailViewController: UIViewController {
         }
         backItem.tintColor = .systemGreen   // Health 앱과 비슷한 연두색
         navigationItem.leftBarButtonItem = backItem
+        // 기존 네비게이션 바 토글 버튼 제거 (토글 버튼은 인라인 UI로 이동)
+        navigationItem.rightBarButtonItem = nil
     }
     
     // MARK: - UI
     private func setupUI() {
-        let topAnchor: NSLayoutYAxisAnchor
-        if navigationController == nil {
-            view.addSubview(fallbackTitleLabel)
-            NSLayoutConstraint.activate([
-                fallbackTitleLabel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 20),
-                fallbackTitleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
-                fallbackTitleLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20)
-            ])
-            topAnchor = fallbackTitleLabel.bottomAnchor
-        } else {
-            topAnchor = view.safeAreaLayoutGuide.topAnchor
-        }
+        let topAnchor = view.safeAreaLayoutGuide.topAnchor
         segmentedControl.selectedSegmentIndex = initialSegmentIndex
         segmentedControl.translatesAutoresizingMaskIntoConstraints = false
         segmentedControl.addTarget(self, action: #selector(segmentChanged(_:)), for: .valueChanged)
-
         view.addSubview(segmentedControl)
+
+        // 개수/칼로리 토글 버튼 (세그먼트 바로 위, red line 위치)
+        let unitToggleButton = UIButton(type: .system)
+        unitToggleButton.setTitle(showCalories ? "칼로리" : "개수", for: .normal)
+        unitToggleButton.setImage(UIImage(systemName: "arrow.up.arrow.down"), for: .normal)
+        unitToggleButton.tintColor = .systemBlue
+        unitToggleButton.semanticContentAttribute = .forceRightToLeft
+        unitToggleButton.translatesAutoresizingMaskIntoConstraints = false
+        unitToggleButton.addTarget(self, action: #selector(toggleUnit), for: .touchUpInside)
+        view.addSubview(unitToggleButton)
+
         view.addSubview(chartScrollView)
 
         chartScrollView.translatesAutoresizingMaskIntoConstraints = false
@@ -129,13 +217,16 @@ class MonthlyDetailViewController: UIViewController {
         NSLayoutConstraint.activate([
             segmentedControl.topAnchor.constraint(equalTo: topAnchor, constant: 5),
             segmentedControl.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
-            segmentedControl.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
-
+            // Segmented control ends 8pt before the toggle button
+            segmentedControl.trailingAnchor.constraint(equalTo: unitToggleButton.leadingAnchor, constant: -8),
+            // Toggle button aligned vertically with segmentedControl center
+            unitToggleButton.centerYAnchor.constraint(equalTo: segmentedControl.centerYAnchor),
+            // Toggle button flush to right margin
+            unitToggleButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
             chartScrollView.topAnchor.constraint(equalTo: segmentedControl.bottomAnchor, constant: 20),
             chartScrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
             chartScrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
             chartScrollView.bottomAnchor.constraint(equalTo: view.safeAreaLayoutGuide.bottomAnchor),
-
             chartStackView.topAnchor.constraint(equalTo: chartScrollView.topAnchor),
             chartStackView.leadingAnchor.constraint(equalTo: chartScrollView.leadingAnchor),
             chartStackView.trailingAnchor.constraint(equalTo: chartScrollView.trailingAnchor),
@@ -143,38 +234,49 @@ class MonthlyDetailViewController: UIViewController {
             chartStackView.widthAnchor.constraint(equalTo: chartScrollView.widthAnchor)
         ])
 
-        addChartCard(title: "스쿼트", card: squatCard, chart: squatChart)
-        addChartCard(title: "푸쉬업", card: pushUpCard, chart: pushUpChart)
-        addChartCard(title: "턱걸이", card: pullUpCard, chart: pullUpChart)
+        addChartCard(title: "스쿼트", subtitleLabel: squatSubtitleLabel, card: squatCard, chart: squatChart)
+        addChartCard(title: "푸쉬업", subtitleLabel: pushUpSubtitleLabel, card: pushUpCard, chart: pushUpChart)
+        addChartCard(title: "턱걸이", subtitleLabel: pullUpSubtitleLabel, card: pullUpCard, chart: pullUpChart)
     }
     
-    private func addChartCard(title: String, card: UIView, chart: BarChartView) {
+    private func addChartCard(title: String, subtitleLabel: UILabel, card: UIView, chart: BarChartView) {
         card.backgroundColor = UIColor(red: 28/255, green: 28/255, blue: 30/255, alpha: 1)
         card.layer.cornerRadius = 20
         card.layer.cornerCurve  = .continuous
         card.layer.masksToBounds = true
         card.translatesAutoresizingMaskIntoConstraints = false
-        
+
         let titleLabel = UILabel()
         titleLabel.text = title
         titleLabel.font = .systemFont(ofSize: 18, weight: .bold)
         titleLabel.textColor = .white
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        
+
+        subtitleLabel.font = .systemFont(ofSize: 12)
+        subtitleLabel.textColor = .lightGray
+        subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
+        subtitleLabel.text = ""
+
         chart.translatesAutoresizingMaskIntoConstraints = false
         chart.backgroundColor = UIColor(red: 28/255, green: 28/255, blue: 30/255, alpha: 1) // 짙은 회색 배경
         chart.layer.cornerRadius = 12
         chart.layer.maskedCorners = [.layerMinXMinYCorner, .layerMaxXMinYCorner] // top‑left & top‑right만 둥글게
         chart.layer.cornerCurve  = .continuous   // smooth iOS‑style corners
+        // chart.renderer 설정은 각 update 함수에서 별도 지정
         chart.clipsToBounds     = true
-        
+
         card.addSubview(titleLabel)
+        card.addSubview(subtitleLabel)
         card.addSubview(chart)
         NSLayoutConstraint.activate([
             titleLabel.topAnchor.constraint(equalTo: card.topAnchor, constant: 10),
             titleLabel.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 10),
-            
-            chart.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 10),
+
+            subtitleLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 2),
+            subtitleLabel.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 10),
+            subtitleLabel.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -10),
+
+            chart.topAnchor.constraint(equalTo: subtitleLabel.bottomAnchor, constant: 2),
             chart.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 10),
             chart.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -10),
             chart.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -10),
@@ -185,8 +287,39 @@ class MonthlyDetailViewController: UIViewController {
     
     // MARK: - 차트 업데이트
     private func updateAllCharts(for index: Int, baseDate: Date?) {
+        updateSubtitles(for: index, baseDate: baseDate)
+        // 세그먼트를 변경할 때 이전에 그려진 데이터를 먼저 제거
+        resetCharts(with: "데이터 없음")
         let cal = Calendar.current
-        let records = UserDefaults.standard.array(forKey: "exerciseSummaries") as? [[String: Any]] ?? []
+        let rawRecords = UserDefaults.standard.array(forKey: "exerciseSummaries") as? [[String: Any]] ?? []
+
+        // Parse records from UserDefaults; support "date" (Date) or "timestamp" (TimeInterval)
+        let records: [[String: Any]] = rawRecords.compactMap { rec in
+            guard let type = rec["exerciseType"] as? String,
+                  let reps = rec["reps"] as? Int else { return nil }
+            // Determine date
+            let date: Date
+            if let d = rec["date"] as? Date {
+                date = d
+            } else if let ts = rec["timestamp"] as? TimeInterval {
+                date = Date(timeIntervalSince1970: ts)
+            } else {
+                return nil
+            }
+            // Build new record
+            var newRec: [String: Any] = [
+                "exerciseType": type,
+                "reps": reps,
+                "date": date
+            ]
+            // Handle calories stored as Double or Int
+            if let calD = rec["calories"] as? Double {
+                newRec["calories"] = calD
+            } else if let calI = rec["calories"] as? Int {
+                newRec["calories"] = Double(calI)
+            }
+            return newRec
+        }
 
         // Helper: 특정 기간 레코드 필터
         func filterRecords(_ cond: (_ date: Date)->Bool) -> [[String:Any]] {
@@ -236,7 +369,8 @@ class MonthlyDetailViewController: UIViewController {
     // 공통 초기화: 차트에 데이터가 없을 때 메시지 표시
     private func resetCharts(with message: String) {
         [squatChart, pushUpChart, pullUpChart].forEach {
-            $0.data = nil
+            // 내부 상태와 화면을 모두 초기화
+            $0.clear()                       // data = nil + 즉시 리프레시
             $0.noDataText = message
             $0.noDataTextColor = .lightGray
         }
@@ -246,35 +380,56 @@ class MonthlyDetailViewController: UIViewController {
     /// 선택된 하루 ‑ 시간대(0‑23시) 별 차트
     private func updateDailyCharts(with recs: [[String:Any]]) {
         guard !recs.isEmpty else { return resetCharts(with: "기록 없음") }
-        
-        // 시간대별(0‥23) 집계용 배열
-        var byHour: [String:[Int]] = [:]
-        ["스쿼트","푸쉬업","턱걸이"].forEach { byHour[$0] = Array(repeating: 0, count: 24) }
-        
+        // 시간대별(0‥23) 집계용 배열 (개수, 칼로리)
+        var byHourCount: [String:[Int]] = [:]
+        var byHourCal:   [String:[Double]] = [:]
+        ["스쿼트","푸쉬업","턱걸이"].forEach {
+            byHourCount[$0] = Array(repeating: 0, count: 24)
+            byHourCal[$0]   = Array(repeating: 0.0, count: 24)
+        }
         let cal = Calendar.current
         recs.forEach {
             guard let t  = $0["exerciseType"] as? String,
                   let r  = $0["reps"]          as? Int,
                   let dt = $0["date"]          as? Date else { return }
             let h = cal.component(.hour, from: dt)        // 0‥23
-            byHour[t]![h] += r
+            byHourCount[t]![h] += r
+            if let calVal = $0["calories"] as? Double { byHourCal[t]![h] += calVal }
         }
-        
         // X축 라벨: 0,1,2 … 23
         let hourLabels = (0...23).map { "\($0)" }
-        
+        // 일차트는 둥근 모서리 반경 2로 설정
+        squatChart.renderer = RoundedBarChartRenderer(
+            dataProvider: squatChart,
+            animator: squatChart.chartAnimator,
+            viewPortHandler: squatChart.viewPortHandler,
+            cornerRadius: 2
+        )
+        pushUpChart.renderer = RoundedBarChartRenderer(
+            dataProvider: pushUpChart,
+            animator: pushUpChart.chartAnimator,
+            viewPortHandler: pushUpChart.viewPortHandler,
+            cornerRadius: 2
+        )
+        pullUpChart.renderer = RoundedBarChartRenderer(
+            dataProvider: pullUpChart,
+            animator: pullUpChart.chartAnimator,
+            viewPortHandler: pullUpChart.viewPortHandler,
+            cornerRadius: 2
+        )
         applyMultiBar(to: squatChart,
-                      values: (0...23).map { Double(byHour["스쿼트"]![$0]) },
+                      values: showCalories ? (0...23).map { Double(byHourCal["스쿼트"]![$0]) }
+                                         : (0...23).map { Double(byHourCount["스쿼트"]![$0]) },
                       labels: hourLabels,
                       color: .systemGreen)
-        
         applyMultiBar(to: pushUpChart,
-                      values: (0...23).map { Double(byHour["푸쉬업"]![$0]) },
+                      values: showCalories ? (0...23).map { Double(byHourCal["푸쉬업"]![$0]) }
+                                         : (0...23).map { Double(byHourCount["푸쉬업"]![$0]) },
                       labels: hourLabels,
                       color: .systemBlue)
-        
         applyMultiBar(to: pullUpChart,
-                      values: (0...23).map { Double(byHour["턱걸이"]![$0]) },
+                      values: showCalories ? (0...23).map { Double(byHourCal["턱걸이"]![$0]) }
+                                         : (0...23).map { Double(byHourCount["턱걸이"]![$0]) },
                       labels: hourLabels,
                       color: .systemPurple)
     }
@@ -282,64 +437,105 @@ class MonthlyDetailViewController: UIViewController {
     private func updateWeeklyCharts(with recs: [[String:Any]]) {
         guard !recs.isEmpty else { return resetCharts(with: "기록 없음") }
         let cal = Calendar.current
-        var byDay: [String:[Int]] = [:] // key 운동, 배열 1...7
-        ["스쿼트","푸쉬업","턱걸이"].forEach { byDay[$0] = Array(repeating: 0, count: 8) }
+        var byDayCount: [String:[Int]] = [:] // key 운동, 배열 1...7
+        var byDayCal:   [String:[Double]] = [:]
+        ["스쿼트","푸쉬업","턱걸이"].forEach {
+            byDayCount[$0] = Array(repeating: 0, count: 8)
+            byDayCal[$0]   = Array(repeating: 0.0, count: 8)
+        }
         recs.forEach {
             guard let t = $0["exerciseType"] as? String,
                   let r = $0["reps"] as? Int,
                   let d = $0["date"] as? Date else { return }
             let w = cal.component(.weekday, from: d)
-            byDay[t]![w] += r
+            byDayCount[t]![w] += r
+            if let calVal = $0["calories"] as? Double { byDayCal[t]![w] += calVal }
         }
         let order = [1,2,3,4,5,6,7]
         let labels = ["일","월","화","수","목","금","토"]
-        applyMultiBar(to: squatChart, values: order.map{Double(byDay["스쿼트"]![$0])}, labels: labels, color: .systemGreen)
-        applyMultiBar(to: pushUpChart, values: order.map{Double(byDay["푸쉬업"]![$0])}, labels: labels, color: .systemBlue)
-        applyMultiBar(to: pullUpChart, values: order.map{Double(byDay["턱걸이"]![$0])}, labels: labels, color: .systemPurple)
+        // 주차트는 모서리 반경 4
+        squatChart.renderer = RoundedBarChartRenderer(
+            dataProvider: squatChart,
+            animator: squatChart.chartAnimator,
+            viewPortHandler: squatChart.viewPortHandler,
+            cornerRadius: 4
+        )
+        pushUpChart.renderer = RoundedBarChartRenderer(
+            dataProvider: pushUpChart,
+            animator: pushUpChart.chartAnimator,
+            viewPortHandler: pushUpChart.viewPortHandler,
+            cornerRadius: 4
+        )
+        pullUpChart.renderer = RoundedBarChartRenderer(
+            dataProvider: pullUpChart,
+            animator: pullUpChart.chartAnimator,
+            viewPortHandler: pullUpChart.viewPortHandler,
+            cornerRadius: 4
+        )
+        applyMultiBar(to: squatChart,
+                      values: showCalories ? order.map{ Double(byDayCal["스쿼트"]![$0]) }
+                                          : order.map{ Double(byDayCount["스쿼트"]![$0]) },
+                      labels: labels, color: .systemGreen)
+        applyMultiBar(to: pushUpChart,
+                      values: showCalories ? order.map{ Double(byDayCal["푸쉬업"]![$0]) }
+                                          : order.map{ Double(byDayCount["푸쉬업"]![$0]) },
+                      labels: labels, color: .systemBlue)
+        applyMultiBar(to: pullUpChart,
+                      values: showCalories ? order.map{ Double(byDayCal["턱걸이"]![$0]) }
+                                          : order.map{ Double(byDayCount["턱걸이"]![$0]) },
+                      labels: labels, color: .systemPurple)
     }
     
     private func updateMonthlyCharts(with recs: [[String:Any]], year: Int) {
         let cal = Calendar.current
-        var byMonth = ["스쿼트":Array(repeating:0, count:13),
-                       "푸쉬업":Array(repeating:0, count:13),
-                       "턱걸이":Array(repeating:0, count:13)]
+        var byMonthCount = ["스쿼트":Array(repeating:0, count:13),
+                            "푸쉬업":Array(repeating:0, count:13),
+                            "턱걸이":Array(repeating:0, count:13)]
+        var byMonthCal = ["스쿼트":Array(repeating:0.0, count:13),
+                          "푸쉬업":Array(repeating:0.0, count:13),
+                          "턱걸이":Array(repeating:0.0, count:13)]
         recs.forEach {
             guard let t = $0["exerciseType"] as? String,
                   let r = $0["reps"] as? Int,
                   let d = $0["date"] as? Date else { return }
             let m = cal.component(.month, from: d)
-            byMonth[t]![m] += r
+            byMonthCount[t]![m] += r
+            if let calVal = $0["calories"] as? Double { byMonthCal[t]![m] += calVal }
         }
         let labels = (1...12).map { "\($0)월" }
-        applyMultiBar(to: squatChart, values: (1...12).map{Double(byMonth["스쿼트"]![$0])}, labels: labels, color: .systemGreen)
-        applyMultiBar(to: pushUpChart, values: (1...12).map{Double(byMonth["푸쉬업"]![$0])},  labels: labels, color: .systemBlue)
-        applyMultiBar(to: pullUpChart, values: (1...12).map{Double(byMonth["턱걸이"]![$0])}, labels: labels, color: .systemPurple)
+        // 월차트는 모서리 반경 4
+        squatChart.renderer = RoundedBarChartRenderer(
+            dataProvider: squatChart,
+            animator: squatChart.chartAnimator,
+            viewPortHandler: squatChart.viewPortHandler,
+            cornerRadius: 4
+        )
+        pushUpChart.renderer = RoundedBarChartRenderer(
+            dataProvider: pushUpChart,
+            animator: pushUpChart.chartAnimator,
+            viewPortHandler: pushUpChart.viewPortHandler,
+            cornerRadius: 4
+        )
+        pullUpChart.renderer = RoundedBarChartRenderer(
+            dataProvider: pullUpChart,
+            animator: pullUpChart.chartAnimator,
+            viewPortHandler: pullUpChart.viewPortHandler,
+            cornerRadius: 4
+        )
+        applyMultiBar(to: squatChart,
+                      values: showCalories ? (1...12).map{ Double(byMonthCal["스쿼트"]![$0]) }
+                                          : (1...12).map{ Double(byMonthCount["스쿼트"]![$0]) },
+                      labels: labels, color: .systemGreen)
+        applyMultiBar(to: pushUpChart,
+                      values: showCalories ? (1...12).map{ Double(byMonthCal["푸쉬업"]![$0]) }
+                                          : (1...12).map{ Double(byMonthCount["푸쉬업"]![$0]) },
+                      labels: labels, color: .systemBlue)
+        applyMultiBar(to: pullUpChart,
+                      values: showCalories ? (1...12).map{ Double(byMonthCal["턱걸이"]![$0]) }
+                                          : (1...12).map{ Double(byMonthCount["턱걸이"]![$0]) },
+                      labels: labels, color: .systemPurple)
     }
     
-    private func updateYearlyCharts(with recs: [[String:Any]]) {
-        guard !recs.isEmpty else { return resetCharts(with: "기록 없음") }
-        let cal = Calendar.current
-        let years = Set(recs.compactMap {
-            ($0["date"] as? Date).map { cal.component(.year, from: $0) }
-        }).sorted()
-        var byYear = ["스쿼트":Array(repeating:0, count: years.count),
-                      "푸쉬업":Array(repeating:0, count: years.count),
-                      "턱걸이":Array(repeating:0, count: years.count)]
-        for (idx, y) in years.enumerated() {
-            recs.forEach {
-                guard let t = $0["exerciseType"] as? String,
-                      let r = $0["reps"] as? Int,
-                      let d = $0["date"] as? Date else { return }
-                if cal.component(.year, from: d) == y {
-                    byYear[t]![idx] += r
-                }
-            }
-        }
-        let labels = years.map { "\($0)" }
-        applyMultiBar(to: squatChart, values: byYear["스쿼트"]!.map{Double($0)}, labels: labels, color: .systemGreen)
-        applyMultiBar(to: pushUpChart, values: byYear["푸쉬업"]!.map{Double($0)},  labels: labels, color: .systemBlue)
-        applyMultiBar(to: pullUpChart, values: byYear["턱걸이"]!.map{Double($0)}, labels: labels, color: .systemPurple)
-    }
     
     // MARK: - 차트 Helper
     private func applySingleBar(to chart: BarChartView, value: Int, color: UIColor) {
@@ -361,6 +557,7 @@ class MonthlyDetailViewController: UIViewController {
         let set     = BarChartDataSet(entries: entries, label: "")
         let intFormatter = IntValueFormatter()
         set.valueFormatter = intFormatter
+        set.valueFont = UIFont.systemFont(ofSize: 10) // 숫자 크기 키우기
         set.colors  = [color]
 
         let data    = BarChartData(dataSet: set)
@@ -382,12 +579,31 @@ class MonthlyDetailViewController: UIViewController {
             chart.xAxis.labelCount = 9   // 0,3,6 … 24
             chart.xAxis.granularity = 3
         }
-        else if labels.count >= 28 {
-            // 1, 8, 15, 22, 29 처럼 7일 간격으로만 라벨 표시
+        else if labels.count == 28 {
+            chart.xAxis.setLabelCount(4, force: true)
+            chart.xAxis.granularity = 7
+            chart.xAxis.granularityEnabled = true
+        }
+        else if labels.count == 29 {
+            chart.xAxis.setLabelCount(4, force: true)
+            chart.xAxis.granularity = 7
+            chart.xAxis.granularityEnabled = true
+        }
+        else if labels.count == 30 {
             chart.xAxis.setLabelCount(5, force: true)
             chart.xAxis.granularity = 7
+            chart.xAxis.granularityEnabled = true
         }
+        else if labels.count == 31 {
+            chart.xAxis.setLabelCount(3, force: true)
+            chart.xAxis.granularity = 15
+            chart.xAxis.granularityEnabled = true
+        }
+        // Y축 최소값 0으로 고정
         chart.leftAxis.axisMinimum = 0
+        // Y축 라벨을 정수 단위로 표시
+        chart.leftAxis.granularity = 1
+        chart.leftAxis.granularityEnabled = true
         // 가로(수평) 그리드 라인 및 라벨 개수를 줄여 거미줄 느낌 완화
         chart.leftAxis.labelCount = 4          // 기본 6 → 4로 축소
         chart.rightAxis.enabled    = false
@@ -435,14 +651,57 @@ class MonthlyDetailViewController: UIViewController {
         if let data = chart.data as? BarChartData {
             data.barWidth = barWidth
         }
-        // 막대 폭의 절반 + 여분 패딩만큼 좌우 여백을 주어 첫‧마지막 막대도 정확히 중앙에 & 화면에 붙지 않음
-        let halfBar = barWidth / 2.0
-        let extraPad = 0.2               // 여분 0.2칸 패딩
-        chart.xAxis.axisMinimum = -(halfBar + extraPad)
-        chart.xAxis.axisMaximum = Double(labels.count - 1) + halfBar + extraPad
+        // Y축 최댓값을 데이터 최대값보다 약간 더 크게 설정하여 레이블이 잘리지 않도록 함
+        if let data = chart.data as? BarChartData {
+            let maxValue = data.yMax
+            chart.leftAxis.axisMaximum = maxValue * 1.2 // 10% 여유
+        }
+        // 월별 차트: 1, 8, 15, 22, 29 기준으로 라벨 표시하고 패딩 제거
+        if labels.count == 12 {
+            let halfBar = barWidth / 2.0
+            chart.xAxis.axisMinimum = -halfBar
+            chart.xAxis.axisMaximum = Double(labels.count - 1) + halfBar
+        }
+        else if labels.count >= 28 && labels.count <= 31 {
+            chart.xAxis.axisMinimum = 0
+            chart.xAxis.axisMaximum = Double(labels.count - 1)
+        } else {
+            // 기본: 패딩 포함하여 첫·마지막 막대 중앙 정렬
+            let halfBar = barWidth / 2.0
+            let extraPad = 0.2               // 여분 0.2칸 패딩
+            chart.xAxis.axisMinimum = -(halfBar + extraPad)
+            chart.xAxis.axisMaximum = Double(labels.count - 1) + halfBar + extraPad
+        }
+
+        // Add extra left padding so Y-axis labels are not clipped
+        chart.setExtraOffsets(left: 0, top: 0, right: 0, bottom: 0)
 
         chart.chartDescription.enabled = false
         chart.legend.enabled = false
+    }
+
+    // MARK: - Subtitle Helper
+    private func updateSubtitles(for index: Int, baseDate: Date?) {
+        let cal = Calendar.current
+        let date = baseDate ?? Date()
+        let year = cal.component(.year, from: date)
+        let month = cal.component(.month, from: date)
+        var subtitleText = ""
+        switch index {
+        case 0:
+            let day = cal.component(.day, from: date)
+            subtitleText = "\(year)년 \(month)월 \(day)일"
+        case 1:
+            let weekOfMonth = cal.component(.weekOfMonth, from: date)
+            subtitleText = "\(year)년 \(month)월 \(weekOfMonth)주"
+        case 2:
+            subtitleText = "\(year)년 \(month)월"
+        case 3:
+            subtitleText = "\(year)년"
+        default:
+            break
+        }
+        [squatSubtitleLabel, pushUpSubtitleLabel, pullUpSubtitleLabel].forEach { $0.text = subtitleText }
     }
     
     /// 선택된 월의 일자(1‥28/29/30/31) 별 차트
@@ -450,25 +709,69 @@ class MonthlyDetailViewController: UIViewController {
         guard !recs.isEmpty else { return resetCharts(with: "기록 없음") }
         let cal = Calendar.current
         let range = cal.range(of: .day, in: .month, for: monthBase) ?? 1..<32   // 기본값을 ClosedRange → Range 로 변경
-        var byDay = ["스쿼트":Array(repeating:0, count: range.count + 1),
-                     "푸쉬업":Array(repeating:0, count: range.count + 1),
-                     "턱걸이":Array(repeating:0, count: range.count + 1)]
+        var byDayOfMonthCount = ["스쿼트":Array(repeating:0, count: range.count + 1),
+                                 "푸쉬업":Array(repeating:0, count: range.count + 1),
+                                 "턱걸이":Array(repeating:0, count: range.count + 1)]
+        var byDayOfMonthCal = ["스쿼트":Array(repeating:0.0, count: range.count + 1),
+                               "푸쉬업":Array(repeating:0.0, count: range.count + 1),
+                               "턱걸이":Array(repeating:0.0, count: range.count + 1)]
         recs.forEach {
             guard let t = $0["exerciseType"] as? String,
                   let r = $0["reps"] as? Int,
                   let d = $0["date"] as? Date else { return }
             let day = cal.component(.day, from: d)
-            byDay[t]![day] += r
+            byDayOfMonthCount[t]![day] += r
+            if let calVal = $0["calories"] as? Double { byDayOfMonthCal[t]![day] += calVal }
         }
         let labels = range.map { "\($0)" }
-        applyMultiBar(to: squatChart, values: range.map{Double(byDay["스쿼트"]![$0])}, labels: labels, color: .systemGreen)
-        applyMultiBar(to: pushUpChart, values: range.map{Double(byDay["푸쉬업"]![$0])},  labels: labels, color: .systemBlue)
-        applyMultiBar(to: pullUpChart, values: range.map{Double(byDay["턱걸이"]![$0])}, labels: labels, color: .systemPurple)
+        // 일차트는 둥근 모서리 반경 2로 설정
+        squatChart.renderer = RoundedBarChartRenderer(
+            dataProvider: squatChart,
+            animator: squatChart.chartAnimator,
+            viewPortHandler: squatChart.viewPortHandler,
+            cornerRadius: 2
+        )
+        pushUpChart.renderer = RoundedBarChartRenderer(
+            dataProvider: pushUpChart,
+            animator: pushUpChart.chartAnimator,
+            viewPortHandler: pushUpChart.viewPortHandler,
+            cornerRadius: 2
+        )
+        pullUpChart.renderer = RoundedBarChartRenderer(
+            dataProvider: pullUpChart,
+            animator: pullUpChart.chartAnimator,
+            viewPortHandler: pullUpChart.viewPortHandler,
+            cornerRadius: 2
+        )
+        applyMultiBar(to: squatChart,
+                      values: showCalories ? range.map{ Double(byDayOfMonthCal["스쿼트"]![$0]) }
+                                          : range.map{ Double(byDayOfMonthCount["스쿼트"]![$0]) },
+                      labels: labels, color: .systemGreen)
+        applyMultiBar(to: pushUpChart,
+                      values: showCalories ? range.map{ Double(byDayOfMonthCal["푸쉬업"]![$0]) }
+                                          : range.map{ Double(byDayOfMonthCount["푸쉬업"]![$0]) },
+                      labels: labels, color: .systemBlue)
+        applyMultiBar(to: pullUpChart,
+                      values: showCalories ? range.map{ Double(byDayOfMonthCal["턱걸이"]![$0]) }
+                                          : range.map{ Double(byDayOfMonthCount["턱걸이"]![$0]) },
+                      labels: labels, color: .systemPurple)
     }
 
     // MARK: - Actions
     @objc private func segmentChanged(_ sender: UISegmentedControl) {
         updateAllCharts(for: sender.selectedSegmentIndex, baseDate: selectedDate)
+    }
+
+    @objc private func toggleUnit() {
+        showCalories.toggle()
+        // segmentedControl과 같은 superview 내에서 토글 버튼을 찾음
+        for subview in view.subviews {
+            if let button = subview as? UIButton,
+               button.actions(forTarget: self, forControlEvent: .touchUpInside)?.contains("toggleUnit") == true {
+                button.setTitle(showCalories ? "칼로리" : "개수", for: .normal)
+            }
+        }
+        updateAllCharts(for: segmentedControl.selectedSegmentIndex, baseDate: selectedDate)
     }
     
     @objc private func closeButtonTapped() {

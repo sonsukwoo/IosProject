@@ -1,7 +1,8 @@
 import UIKit  // 메인 화면
+import UserNotifications
 
 // MARK: - ViewController 클래스
-class ViewController: UIViewController, UIPickerViewDelegate, UIPickerViewDataSource {
+class ViewController: UIViewController, UIPickerViewDelegate, UIPickerViewDataSource, UNUserNotificationCenterDelegate {
     
     // MARK: - ExerciseSettings 구조체 정의
     struct ExerciseSettings: Codable {
@@ -22,8 +23,7 @@ class ViewController: UIViewController, UIPickerViewDelegate, UIPickerViewDataSo
     var exerciseSettings: [ExerciseViewController.ExerciseMode: ExerciseSettings] = [
         .squat: ExerciseSettings(targetRepetitions: 10, targetSets: 1, restTime: 30),
         .pushUp: ExerciseSettings(targetRepetitions: 10, targetSets: 1, restTime: 30),
-        .pullUp: ExerciseSettings(targetRepetitions: 10, targetSets: 1, restTime: 30),
-        .none: ExerciseSettings(targetRepetitions: 10, targetSets: 1, restTime: 30)
+        .pullUp: ExerciseSettings(targetRepetitions: 10, targetSets: 1, restTime: 30)
     ]
     
     // 피커뷰 옵션
@@ -43,7 +43,8 @@ class ViewController: UIViewController, UIPickerViewDelegate, UIPickerViewDataSo
     var squatButton: UIView!
     var pushUpButton: UIView!
     var pullUpButton: UIView!
-    var setButton: UIView!
+    var reminderButton: UIView!
+    var todayGoalButton: UIView!
     
     // 현재 설정 중인 운동 모드
     var currentExerciseMode: ExerciseViewController.ExerciseMode?
@@ -53,7 +54,19 @@ class ViewController: UIViewController, UIPickerViewDelegate, UIPickerViewDataSo
         static let squatSettings = "squatSettings"
         static let pushUpSettings = "pushUpSettings"
         static let pullUpSettings = "pullUpSettings"
-        static let noneSettings = "noneSettings"
+        static let reminderHour   = "reminderHour"
+        static let reminderMinute = "reminderMinute"
+        static let dailyChallengeData = "dailyChallengeData"
+        static let dailyChallengeDate = "dailyChallengeDate"
+        static let dailyChallengeCompletedDate = "dailyChallengeCompletedDate"
+    }
+
+
+    // MARK: - Challenge 모델 및 로딩
+    struct TodayChallenge: Codable {
+        let exerciseType: String
+        let target: Int
+        let targetSets: Int
     }
     
     override func viewDidLoad() {
@@ -66,7 +79,10 @@ class ViewController: UIViewController, UIPickerViewDelegate, UIPickerViewDataSo
         
         loadSettingsFromUserDefaults() // 설정 불러오기
         setupUI()
+        UNUserNotificationCenter.current().delegate = self
         updateButtonTitles() // 불러온 설정으로 버튼 타이틀 업데이트
+        updateReminderButtonSubtitle()
+        updateTodayGoalSubtitle()
     }
     
     // 메인 화면이 다시 나타날 때, 혹은 탭바에서 메인 버튼이 선택될 때 SettingsViewController가 모달로 남아있다면 dismiss 처리
@@ -75,6 +91,8 @@ class ViewController: UIViewController, UIPickerViewDelegate, UIPickerViewDataSo
         if let presentedVC = self.presentedViewController, presentedVC is SettingsViewController {
             presentedVC.dismiss(animated: false, completion: nil)
         }
+        updateReminderButtonSubtitle()
+        updateTodayGoalSubtitle()
     }
     
     // MARK: - UI 구성
@@ -119,18 +137,45 @@ class ViewController: UIViewController, UIPickerViewDelegate, UIPickerViewDataSo
             mainAction: #selector(pullUpButtonTapped),
             settingsAction: #selector(settingsButtonTapped(_:))
         )
-        setButton = createCustomButton(  // 추후 업데이트 기능
-            title: "릴레이",
+        todayGoalButton = createCustomButton(
+            title: "도전 과제",
             subtitle: "",
-            color: .systemOrange,
+            color: .systemYellow,
             iconName: "list.bullet",
-            exerciseMode: .none,
-            mainAction: #selector(setButtonTapped),
+            exerciseMode: .squat,
+            mainAction: #selector(todayGoalButtonTapped),
             settingsAction: nil
         )
+        // Shrink icon size for todayGoalButton
+        if let main = todayGoalButton.subviews.compactMap({ $0 as? UIButton }).first,
+           let stack = main.subviews.compactMap({ $0 as? UIStackView }).first,
+           let iconView = stack.arrangedSubviews.first as? UIImageView {
+            iconView.widthAnchor.constraint(equalToConstant: 24).isActive = true
+            iconView.heightAnchor.constraint(equalToConstant: 24).isActive = true
+        }
+        reminderButton = createCustomButton(
+            title: "리마인더",
+            subtitle: "오전 8시",
+            color: .systemYellow,
+            iconName: "bell.fill",
+            exerciseMode: .squat,
+            mainAction: #selector(reminderButtonTapped),
+            settingsAction: nil
+        )
+        // Shrink icon size for reminderButton
+        if let main = reminderButton.subviews.compactMap({ $0 as? UIButton }).first,
+           let stack = main.subviews.compactMap({ $0 as? UIStackView }).first,
+           let iconView = stack.arrangedSubviews.first as? UIImageView {
+            iconView.widthAnchor.constraint(equalToConstant: 24).isActive = true
+            iconView.heightAnchor.constraint(equalToConstant: 24).isActive = true
+        }
+        // bottom row: 오늘의 목표 & 리마인더 나란히
+        let bottomStack = UIStackView(arrangedSubviews: [todayGoalButton, reminderButton])
+        bottomStack.axis = .horizontal
+        bottomStack.spacing = 20
+        bottomStack.distribution = .fillEqually
         
-        // 버튼 스택뷰 생성
-        let stackView = UIStackView(arrangedSubviews: [squatButton, pushUpButton, pullUpButton, setButton])
+        let stackView = UIStackView(arrangedSubviews: [squatButton, pushUpButton, pullUpButton, bottomStack])
         stackView.axis = .vertical
         stackView.spacing = 20
         stackView.alignment = .fill
@@ -370,8 +415,6 @@ class ViewController: UIViewController, UIPickerViewDelegate, UIPickerViewDataSo
                 settingsButton.tag = ExerciseModeTag.pushUp.rawValue
             case .pullUp:
                 settingsButton.tag = ExerciseModeTag.pullUp.rawValue
-            case .none:
-                settingsButton.tag = 0
             }
             
             containerView.addSubview(settingsButton)
@@ -428,8 +471,34 @@ class ViewController: UIViewController, UIPickerViewDelegate, UIPickerViewDataSo
         }
     }
     
-    @objc func setButtonTapped() {
-        // 세트 프로 기능을 위한 액션 구현 예정
+    
+    @objc func reminderButtonTapped() {
+        // Open the reminder list when implemented
+        let nav = UINavigationController(rootViewController: ReminderListViewController())
+        nav.modalPresentationStyle = .pageSheet
+        if let sheet = nav.sheetPresentationController {
+            sheet.detents = [.medium()]             // 반 높이 시트로 설정
+            sheet.prefersGrabberVisible = true      // 상단 그랩바 표시
+        }
+        present(nav, animated: true)
+    }
+    
+    @objc func todayGoalButtonTapped() {
+        let vc = ChallengeViewController()
+        let nav = UINavigationController(rootViewController: vc)
+        nav.modalPresentationStyle = .pageSheet
+        if let sheet = nav.sheetPresentationController {
+            sheet.detents = [.medium()]
+            sheet.prefersGrabberVisible = true
+        }
+        present(nav, animated: true)
+    }
+    
+    // MARK: - UNUserNotificationCenterDelegate
+    func userNotificationCenter(_ center: UNUserNotificationCenter,
+                                willPresent notification: UNNotification,
+                                withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void) {
+        completionHandler([.banner, .sound])
     }
     
     @objc func settingsButtonTapped(_ sender: UIButton) {
@@ -442,7 +511,7 @@ class ViewController: UIViewController, UIPickerViewDelegate, UIPickerViewDataSo
         case ExerciseModeTag.pullUp.rawValue:
             currentExerciseMode = .pullUp
         default:
-            currentExerciseMode = .none
+            currentExerciseMode = nil
         }
         presentSettings()
     }
@@ -507,7 +576,7 @@ class ViewController: UIViewController, UIPickerViewDelegate, UIPickerViewDataSo
             alert.addAction(UIAlertAction(title: "확인", style: .default, handler: { _ in
                 // 탭바 컨트롤러가 있다면 SettingsViewController가 포함된 탭(예: 인덱스 1)으로 전환
                 if let tabBarController = self.tabBarController {
-                    tabBarController.selectedIndex = 2
+                    tabBarController.selectedIndex = 3
                 }
             }))
             self.present(alert, animated: true, completion: nil)
@@ -598,8 +667,6 @@ class ViewController: UIViewController, UIPickerViewDelegate, UIPickerViewDataSo
                 updateButtonSubtitle(button: pushUpButton, newSubtitle: "\(settings.targetRepetitions)회 / \(settings.targetSets)set / \(settings.restTime)s 휴식")
             case .pullUp:
                 updateButtonSubtitle(button: pullUpButton, newSubtitle: "\(settings.targetRepetitions)회 / \(settings.targetSets)set / \(settings.restTime)s 휴식")
-            case .none:
-                updateButtonSubtitle(button: setButton, newSubtitle: "운동 순서를 편집하려면 클릭하세요.")
             }
         }
     }
@@ -613,8 +680,6 @@ class ViewController: UIViewController, UIPickerViewDelegate, UIPickerViewDataSo
             updateButtonSubtitle(button: pushUpButton, newSubtitle: "\(settings.targetRepetitions)회 / \(settings.targetSets)set / \(settings.restTime)s 휴식")
         case .pullUp:
             updateButtonSubtitle(button: pullUpButton, newSubtitle: "\(settings.targetRepetitions)회 / \(settings.targetSets)set / \(settings.restTime)s 휴식")
-        case .none:
-            updateButtonSubtitle(button: setButton, newSubtitle: "세트 설정을 편집하려면 클릭하세요.")
         }
     }
     
@@ -633,13 +698,11 @@ class ViewController: UIViewController, UIPickerViewDelegate, UIPickerViewDataSo
         
         if let squatData = try? encoder.encode(exerciseSettings[.squat]),
            let pushUpData = try? encoder.encode(exerciseSettings[.pushUp]),
-           let pullUpData = try? encoder.encode(exerciseSettings[.pullUp]),
-           let noneData = try? encoder.encode(exerciseSettings[.none]) {
+           let pullUpData = try? encoder.encode(exerciseSettings[.pullUp]) {
             
             UserDefaults.standard.set(squatData, forKey: UserDefaultsKeys.squatSettings)
             UserDefaults.standard.set(pushUpData, forKey: UserDefaultsKeys.pushUpSettings)
             UserDefaults.standard.set(pullUpData, forKey: UserDefaultsKeys.pullUpSettings)
-            UserDefaults.standard.set(noneData, forKey: UserDefaultsKeys.noneSettings)
         }
     }
     
@@ -660,10 +723,58 @@ class ViewController: UIViewController, UIPickerViewDelegate, UIPickerViewDataSo
            let pullUpSettings = try? decoder.decode(ExerciseSettings.self, from: pullUpData) {
             exerciseSettings[.pullUp] = pullUpSettings
         }
-        
-        if let noneData = UserDefaults.standard.data(forKey: UserDefaultsKeys.noneSettings),
-           let noneSettings = try? decoder.decode(ExerciseSettings.self, from: noneData) {
-            exerciseSettings[.none] = noneSettings
+    }
+    /// 홈 화면 서브타이틀에 알람 개수와 다음 알람 시간 표시
+    func updateReminderButtonSubtitle() {
+        guard let data = UserDefaults.standard.data(forKey: "reminders"),
+              let list = try? JSONDecoder().decode([Reminder].self, from: data) else {
+            updateButtonSubtitle(button: reminderButton, newSubtitle: "알람 없음")
+            return
+        }
+        let enabled = list.filter { $0.enabled }
+        if enabled.isEmpty {
+            updateButtonSubtitle(button: reminderButton, newSubtitle: "알람 없음")
+        } else {
+            let nowMinutes = Calendar.current.component(.hour, from: Date()) * 60 +
+            Calendar.current.component(.minute, from: Date())
+            let next = enabled
+                .sorted { ($0.hour * 60 + $0.minute) < ($1.hour * 60 + $1.minute) }
+                .first { $0.hour * 60 + $0.minute > nowMinutes } ?? enabled[0]
+            let timeStr = String(format: "%02d:%02d", next.hour, next.minute)
+            updateButtonSubtitle(button: reminderButton, newSubtitle: "알람 수: \(enabled.count)개")
+        }
+    }
+
+    // MARK: - 오늘의 목표(도전 과제) 서브타이틀 업데이트
+    private func loadTodayChallenge() -> TodayChallenge? {
+        guard let dict = UserDefaults.standard.dictionary(forKey: UserDefaultsKeys.dailyChallengeData) else { return nil }
+        guard
+            let type = dict["type"] as? String,
+            let reps = dict["reps"] as? Int,
+            let sets = dict["sets"] as? Int
+        else {
+            return nil
+        }
+        return TodayChallenge(exerciseType: type, target: reps, targetSets: sets)
+    }
+
+    private func updateTodayGoalSubtitle() {
+        let defaults = UserDefaults.standard
+        // Load today's challenge
+        if let challenge = loadTodayChallenge() {
+            // Check if today's challenge has been marked completed
+            let today = defaults.string(forKey: UserDefaultsKeys.dailyChallengeDate)
+            let completed = defaults.string(forKey: UserDefaultsKeys.dailyChallengeCompletedDate)
+            if today != nil && today == completed {
+                // Show completion message
+                updateButtonSubtitle(button: todayGoalButton, newSubtitle: "도전 과제 완료!")
+            } else {
+                // Show target format
+                let subtitle = "\(challenge.exerciseType) \(challenge.target)회 \(challenge.targetSets)세트"
+                updateButtonSubtitle(button: todayGoalButton, newSubtitle: subtitle)
+            }
+        } else {
+            updateButtonSubtitle(button: todayGoalButton, newSubtitle: "도전 과제 없음")
         }
     }
 }

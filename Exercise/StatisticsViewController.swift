@@ -1004,7 +1004,13 @@ class StatisticsViewController: UIViewController,
     
     // MARK: - Data Processing & Statistics Updates
     func loadExerciseRecords() {
-        allExerciseRecords = UserDefaults.standard.array(forKey: "exerciseSummaries") as? [[String: Any]] ?? []
+        let rawRecords = UserDefaults.standard.array(forKey: "exerciseSummaries") as? [[String: Any]] ?? []
+        allExerciseRecords = rawRecords.filter { record in
+            if let reps = record["reps"] as? Int {
+                return reps != 0
+            }
+            return true  // allow if reps is nil or not Int
+        }
     }
     
     // MARK: - Date Comparison Helper (Helper Methods 영역에 포함)

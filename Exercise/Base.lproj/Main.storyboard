@@ -99,7 +99,7 @@
                 </viewController>
                 <placeholder placeholderIdentifier="IBFirstResponder" id="zCe-cu-ggL" userLabel="First Responder" customClass="UIResponder" sceneMemberID="firstResponder"/>
             </objects>
-            <point key="canvasLocation" x="1440.4580152671756" y="-27.464788732394368"/>
+            <point key="canvasLocation" x="411" y="-27"/>
         </scene>
         <!--Video Gallery View Controller-->
         <scene sceneID="BuY-jc-mrL">
@@ -150,27 +150,10 @@
             </objects>
             <point key="canvasLocation" x="-621" y="746"/>
         </scene>
-        <!--Navigation Controller-->
-        <scene sceneID="PtK-ia-Xng">
-            <objects>
-                <navigationController automaticallyAdjustsScrollViewInsets="NO" id="C1B-hl-10X" sceneMemberID="viewController">
-                    <toolbarItems/>
-                    <navigationBar key="navigationBar" contentMode="scaleToFill" id="jat-sU-Mlq">
-                        <rect key="frame" x="0.0" y="118" width="393" height="44"/>
-                        <autoresizingMask key="autoresizingMask"/>
-                    </navigationBar>
-                    <nil name="viewControllers"/>
-                    <connections>
-                        <segue destination="o0d-rI-gQf" kind="relationship" relationship="rootViewController" id="gWI-ED-JLM"/>
-                    </connections>
-                </navigationController>
-                <placeholder placeholderIdentifier="IBFirstResponder" id="QqY-Eq-YBl" userLabel="First Responder" customClass="UIResponder" sceneMemberID="firstResponder"/>
-            </objects>
-            <point key="canvasLocation" x="-480" y="-814"/>
-        </scene>
         <!--기록-->
         <scene sceneID="Cca-Ub-UhG">
             <objects>
+                <placeholder placeholderIdentifier="IBFirstResponder" id="SEe-Km-ECY" userLabel="First Responder" customClass="UIResponder" sceneMemberID="firstResponder"/>
                 <navigationController automaticallyAdjustsScrollViewInsets="NO" id="tXw-uU-yCT" sceneMemberID="viewController">
                     <tabBarItem key="tabBarItem" title="기록" image="chart.line.text.clipboard.fill" catalog="system" id="rYl-tN-C2J"/>
                     <toolbarItems/>
@@ -183,7 +166,6 @@
                         <segue destination="dBB-nR-fT4" kind="relationship" relationship="rootViewController" id="NNZ-du-gwL"/>
                     </connections>
                 </navigationController>
-                <placeholder placeholderIdentifier="IBFirstResponder" id="SEe-Km-ECY" userLabel="First Responder" customClass="UIResponder" sceneMemberID="firstResponder"/>
             </objects>
             <point key="canvasLocation" x="-1408" y="746"/>
         </scene>
@@ -205,25 +187,6 @@
                 <placeholder placeholderIdentifier="IBFirstResponder" id="0Od-P0-oBs" userLabel="First Responder" customClass="UIResponder" sceneMemberID="firstResponder"/>
             </objects>
             <point key="canvasLocation" x="394.6564885496183" y="745.77464788732402"/>
-        </scene>
-        <!--Navigation Controller-->
-        <scene sceneID="bxf-5D-Bvz">
-            <objects>
-                <navigationController automaticallyAdjustsScrollViewInsets="NO" id="o0d-rI-gQf" sceneMemberID="viewController">
-                    <toolbarItems/>
-                    <navigationItem key="navigationItem" id="wqG-OB-FSO"/>
-                    <navigationBar key="navigationBar" contentMode="scaleToFill" id="Rty-qK-AA6">
-                        <rect key="frame" x="0.0" y="118" width="393" height="44"/>
-                        <autoresizingMask key="autoresizingMask"/>
-                    </navigationBar>
-                    <nil name="viewControllers"/>
-                    <connections>
-                        <segue destination="pxR-LE-wnw" kind="relationship" relationship="rootViewController" id="BGG-Xs-0fd"/>
-                    </connections>
-                </navigationController>
-                <placeholder placeholderIdentifier="IBFirstResponder" id="lGN-vx-sSu" userLabel="First Responder" customClass="UIResponder" sceneMemberID="firstResponder"/>
-            </objects>
-            <point key="canvasLocation" x="513.74045801526711" y="-27.464788732394368"/>
         </scene>
     </scenes>
     <resources>

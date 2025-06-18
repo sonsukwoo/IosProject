@@ -7,8 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		DF2D28462DEE2838002632F6 /* DGCharts in Frameworks */ = {isa = PBXBuildFile; productRef = DF2D28452DEE2838002632F6 /* DGCharts */; };
-		DF4136B42D45898000300CC1 /* FSCalendar in Frameworks */ = {isa = PBXBuildFile; productRef = DF4136B32D45898000300CC1 /* FSCalendar */; };
+		DF1C1CDD2DEFFC83006162BA /* DGCharts in Frameworks */ = {isa = PBXBuildFile; productRef = DF1C1CDC2DEFFC83006162BA /* DGCharts */; };
+		DF1C1CE02DEFFC92006162BA /* FSCalendar in Frameworks */ = {isa = PBXBuildFile; productRef = DF1C1CDF2DEFFC92006162BA /* FSCalendar */; };
+		DF428E0A2E020F0F00D811A9 /* ChallengeViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = DF428E092E020F0F00D811A9 /* ChallengeViewController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -29,6 +30,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		DF428E092E020F0F00D811A9 /* ChallengeViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChallengeViewController.swift; sourceTree = "<group>"; };
 		DF6E94B92CDC192200BC6888 /* Exercise.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Exercise.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		DF6E94CF2CDC192300BC6888 /* ExerciseTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ExerciseTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		DF6E94D92CDC192400BC6888 /* ExerciseUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ExerciseUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -70,8 +72,8 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				DF2D28462DEE2838002632F6 /* DGCharts in Frameworks */,
-				DF4136B42D45898000300CC1 /* FSCalendar in Frameworks */,
+				DF1C1CDD2DEFFC83006162BA /* DGCharts in Frameworks */,
+				DF1C1CE02DEFFC92006162BA /* FSCalendar in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -102,6 +104,7 @@
 		DF6E94B02CDC192200BC6888 = {
 			isa = PBXGroup;
 			children = (
+				DF428E092E020F0F00D811A9 /* ChallengeViewController.swift */,
 				DF6E94BB2CDC192200BC6888 /* Exercise */,
 				DF6E94D22CDC192300BC6888 /* ExerciseTests */,
 				DF6E94DC2CDC192400BC6888 /* ExerciseUITests */,
@@ -140,8 +143,8 @@
 			);
 			name = Exercise;
 			packageProductDependencies = (
-				DF4136B32D45898000300CC1 /* FSCalendar */,
-				DF2D28452DEE2838002632F6 /* DGCharts */,
+				DF1C1CDC2DEFFC83006162BA /* DGCharts */,
+				DF1C1CDF2DEFFC92006162BA /* FSCalendar */,
 			);
 			productName = Exercise;
 			productReference = DF6E94B92CDC192200BC6888 /* Exercise.app */;
@@ -226,9 +229,8 @@
 			mainGroup = DF6E94B02CDC192200BC6888;
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
-				DF4136B12D4587F400300CC1 /* XCRemoteSwiftPackageReference "FSCalendar" */,
-				DF002F952D616C630065853A /* XCRemoteSwiftPackageReference "Inject" */,
-				DF2D28442DEE2838002632F6 /* XCRemoteSwiftPackageReference "Charts" */,
+				DF1C1CDB2DEFFC83006162BA /* XCRemoteSwiftPackageReference "Charts" */,
+				DF1C1CDE2DEFFC92006162BA /* XCRemoteSwiftPackageReference "FSCalendar" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = DF6E94BA2CDC192200BC6888 /* Products */;
@@ -271,6 +273,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				DF428E0A2E020F0F00D811A9 /* ChallengeViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -603,15 +606,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		DF002F952D616C630065853A /* XCRemoteSwiftPackageReference "Inject" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/krzysztofzablocki/Inject.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 1.5.2;
-			};
-		};
-		DF2D28442DEE2838002632F6 /* XCRemoteSwiftPackageReference "Charts" */ = {
+		DF1C1CDB2DEFFC83006162BA /* XCRemoteSwiftPackageReference "Charts" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/danielgindi/Charts.git";
 			requirement = {
@@ -619,7 +614,7 @@
 				minimumVersion = 5.1.0;
 			};
 		};
-		DF4136B12D4587F400300CC1 /* XCRemoteSwiftPackageReference "FSCalendar" */ = {
+		DF1C1CDE2DEFFC92006162BA /* XCRemoteSwiftPackageReference "FSCalendar" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/WenchaoD/FSCalendar.git";
 			requirement = {
@@ -630,14 +625,14 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		DF2D28452DEE2838002632F6 /* DGCharts */ = {
+		DF1C1CDC2DEFFC83006162BA /* DGCharts */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = DF2D28442DEE2838002632F6 /* XCRemoteSwiftPackageReference "Charts" */;
+			package = DF1C1CDB2DEFFC83006162BA /* XCRemoteSwiftPackageReference "Charts" */;
 			productName = DGCharts;
 		};
-		DF4136B32D45898000300CC1 /* FSCalendar */ = {
+		DF1C1CDF2DEFFC92006162BA /* FSCalendar */ = {
 			isa = XCSwiftPackageProductDependency;
-			package = DF4136B12D4587F400300CC1 /* XCRemoteSwiftPackageReference "FSCalendar" */;
+			package = DF1C1CDE2DEFFC92006162BA /* XCRemoteSwiftPackageReference "FSCalendar" */;
 			productName = FSCalendar;
 		};
 /* End XCSwiftPackageProductDependency section */
