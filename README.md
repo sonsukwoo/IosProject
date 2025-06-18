@@ -93,9 +93,10 @@
 
 ## 🎥 시연 영상
 
+* 유저플로우: https://youtube.com/shorts/xQUCJsBSqcY?si=opeLLatADycHhrSe
 * 스쿼트: https://youtube.com/shorts/t_YfBJu8PDM?si=uqwxJemRUCMEOrh2
 * 푸쉬업: https://youtube.com/shorts/l1ThC9osUPc?si=fB5prTsr2Y6HTZ-q
-* 턱걸이:
+* 턱걸이: https://youtube.com/shorts/evTHiwJTA_Y?si=IuFRJBSsBcG_viS2
 
 * 타사 스쿼트 어플: https://youtube.com/shorts/0RAFuhwY5no?si=FgCt66kjBhqcuG2g
 
