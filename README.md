@@ -28,13 +28,15 @@
 
 ## 💠 기술 스택
 
-| 분류    | 사용 기술                                    |
-| ----- | ---------------------------------------- |
-| 언어    | `Swift`                                  |
-| 프레임워크 | `UIKit`, `AVKit`, `UserNotifications`    |
-| 데이터   | `UserDefaults`, `Codable`, `FileManager` |
-| 영상 관리 | `Documents` 저장소 사용, 영상 리스트 & 재생          |
-| 푸시 알림 | `UNUserNotificationCenter`               |
+| 분류        | 사용 기술                                                                 |
+|-------------|---------------------------------------------------------------------------|
+| 언어         | `Swift`                                                                  |
+| 프레임워크   | `UIKit`, `AVKit`, `UserNotifications`, `Vision`                          |
+| 데이터       | `UserDefaults`, `Codable`, `FileManager`                                  |
+| 영상 관리    | `Documents` 저장소 사용, 영상 리스트 & 재생 (`ReplayKit`, `Photos`)        |
+| 푸시 알림    | `UNUserNotificationCenter`                                                |
+| 음성 안내    | `AVSpeechSynthesizer`를 활용한 운동 중 실시간 한국어 음성 피드백            |
+| 자세 분석    | `VNDetectHumanBodyPoseRequest`, `VNImageRequestHandler`, `VNHumanBodyPoseObservation` |
 
 ---
 
