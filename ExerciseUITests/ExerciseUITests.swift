@@ -1,10 +1,3 @@
-//
-//  ExerciseUITests.swift
-//  ExerciseUITests
-//
-//  Created by 손석우 on 11/7/24.
-//
-
 import XCTest
 
 final class ExerciseUITests: XCTestCase {
@@ -41,3 +34,4 @@ final class ExerciseUITests: XCTestCase {
         }
     }
 }
+

@@ -617,13 +617,13 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
         totalRepetitionTime = 0.0
         repetitionCountForAverage = 0
         exerciseStartTime = nil
-        
+
         if selectedMode == .pullUp {
             isBarGrabbed = false
             barGrabStartTime = nil
             barReleaseStartTime = nil
         }
-        
+
         repetitionsValueLabel.text = "0 / \(targetRepetitions)"
         setsValueLabel.text = "\(currentSet) / \(targetSets)"
         averageSpeedValueLabel.text = "0.0초"
@@ -646,9 +646,11 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
         case .pushUp:
             feedbackMessageLabel.text = "카메라를 주시한 상태로 엎드리세요"
             hasStartedExercise = false
+            // Reset shallow-zone flag and feedback timer at the start of push-up session
+            self.wasInShallowZone = false
+            self.lastFeedbackTime = Date().timeIntervalSince1970
             cameraView.isHidden = false
             captureSession.startRunning()
-        
             break
         }
     }
@@ -1191,34 +1193,14 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
     // MARK: - Push-Up 분석 및 카운트 로직 (개선된 피드백 포함)
     func analyzePushUp(results: VNHumanBodyPoseObservation) {
         guard let recognizedPoints = try? results.recognizedPoints(.all) else { return }
-        // Insert facial presence/confidence check before main logic
-        guard let leftEye = recognizedPoints[.leftEye],
-              let rightEye = recognizedPoints[.rightEye],
-              let nose = recognizedPoints[.nose],
-              leftEye.confidence > 0.3,
-              rightEye.confidence > 0.3,
-              nose.confidence > 0.3 else {
-            DispatchQueue.main.async {
-                self.feedbackMessageLabel.text = "고개를 들어 정면을 주시하세요"
-            }
-            if self.isSpeechEnabled && !self.speechSynthesizer.isSpeaking {
-                self.speak("고개를 들어 정면을 주시하세요")
-            }
-            return
-        }
-        // Restore feedback label if it was showing "고개를 들어 정면을 주시하세요"
-        if self.feedbackMessageLabel.text == "고개를 들어 정면을 주시하세요" {
-            DispatchQueue.main.async {
-                self.feedbackMessageLabel.text = "운동을 시작하세요!"
-            }
-        }
 
         guard let leftElbow = recognizedPoints[.leftElbow],
               let rightElbow = recognizedPoints[.rightElbow],
               let leftShoulder = recognizedPoints[.leftShoulder],
               let rightShoulder = recognizedPoints[.rightShoulder],
               let leftWrist = recognizedPoints[.leftWrist],
-              let rightWrist = recognizedPoints[.rightWrist] else {
+              let rightWrist = recognizedPoints[.rightWrist],
+              let nose = recognizedPoints[.nose] else {
             return
         }
 
@@ -1234,10 +1216,14 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
         // 개선된 피드백 로직
         // --- BEGIN REFACTORED FEEDBACK LOGIC ---
         let elbowYThreshold = max(leftElbowY, rightElbowY)
-        let isCountingPosition = noseY > elbowYThreshold
+        // 피드백 발생 시 약간의 떨림을 허용하기 위한 오차 값 (픽셀 단위)
+        let feedbackTolerance: CGFloat = 15.0
+        let isCountingPosition = noseY > (elbowYThreshold + feedbackTolerance)
+
+        // 현재 시간 저장 (피드백 쿨다운용)
+        let currentTime = Date().timeIntervalSince1970
 
         // 조건 미달 하강 체크: 코가 팔꿈치보다 충분히 아래로 가지 않고 내려갔다가 다시 올라온 경우
-        let currentTime = Date().timeIntervalSince1970
         if !isCountingPosition && isFullyExtended && wasInShallowZone {
             if currentTime - lastFeedbackTime > 2.0 {
                 feedbackMessageLabel.text = "조금 더 내려가셔야 합니다"
@@ -1265,6 +1251,8 @@ class ExerciseViewController: UIViewController, AVCaptureVideoDataOutputSampleBu
                 // Clear feedback when repetition is counted
                 feedbackMessageLabel.text = ""
                 feedbackMessageLabel.isHidden = true
+                // 카운트 직후 피드백 쿨다운 타임스탬프 갱신
+                self.lastFeedbackTime = currentTime
             }
         } else if isFullyExtended {
             isPositionCorrect = false

@@ -124,6 +124,9 @@ class MonthlyDetailViewController: UIViewController {
     let squatSubtitleLabel = UILabel()
     let pushUpSubtitleLabel = UILabel()
     let pullUpSubtitleLabel = UILabel()
+    private let squatTotalLabel = UILabel()
+    private let pushUpTotalLabel = UILabel()
+    private let pullUpTotalLabel = UILabel()
     
     // 전달받은 기준 날짜
     var currentMonth: Date?
@@ -182,10 +185,21 @@ class MonthlyDetailViewController: UIViewController {
         if let chevron = UIImage(systemName: "chevron.backward") {
             backItem.image = chevron
         }
-        backItem.tintColor = .systemGreen   // Health 앱과 비슷한 연두색
+        backItem.tintColor = .systemBlue   // Blue back button
         navigationItem.leftBarButtonItem = backItem
-        // 기존 네비게이션 바 토글 버튼 제거 (토글 버튼은 인라인 UI로 이동)
-        navigationItem.rightBarButtonItem = nil
+        // --- Custom Toggle Button with Title and Icon ---
+        let toggleButton = UIButton(type: .system)
+        toggleButton.setTitle(showCalories ? "칼로리" : "개수", for: .normal)
+        if let icon = UIImage(systemName: "arrow.up.arrow.down") {
+            toggleButton.setImage(icon, for: .normal)
+        }
+        toggleButton.tintColor = .systemBlue
+        toggleButton.semanticContentAttribute = .forceRightToLeft
+        toggleButton.addTarget(self, action: #selector(toggleUnit), for: .touchUpInside)
+        // 버튼 크기를 텍스트와 아이콘에 맞춰 자동 조정하고, 여유 패딩 추가
+        toggleButton.contentEdgeInsets = UIEdgeInsets(top: 0, left: 8, bottom: 0, right: 8)
+        toggleButton.sizeToFit()
+        navigationItem.rightBarButtonItem = UIBarButtonItem(customView: toggleButton)
     }
     
     // MARK: - UI
@@ -196,15 +210,6 @@ class MonthlyDetailViewController: UIViewController {
         segmentedControl.addTarget(self, action: #selector(segmentChanged(_:)), for: .valueChanged)
         view.addSubview(segmentedControl)
 
-        // 개수/칼로리 토글 버튼 (세그먼트 바로 위, red line 위치)
-        let unitToggleButton = UIButton(type: .system)
-        unitToggleButton.setTitle(showCalories ? "칼로리" : "개수", for: .normal)
-        unitToggleButton.setImage(UIImage(systemName: "arrow.up.arrow.down"), for: .normal)
-        unitToggleButton.tintColor = .systemBlue
-        unitToggleButton.semanticContentAttribute = .forceRightToLeft
-        unitToggleButton.translatesAutoresizingMaskIntoConstraints = false
-        unitToggleButton.addTarget(self, action: #selector(toggleUnit), for: .touchUpInside)
-        view.addSubview(unitToggleButton)
 
         view.addSubview(chartScrollView)
 
@@ -217,12 +222,7 @@ class MonthlyDetailViewController: UIViewController {
         NSLayoutConstraint.activate([
             segmentedControl.topAnchor.constraint(equalTo: topAnchor, constant: 5),
             segmentedControl.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
-            // Segmented control ends 8pt before the toggle button
-            segmentedControl.trailingAnchor.constraint(equalTo: unitToggleButton.leadingAnchor, constant: -8),
-            // Toggle button aligned vertically with segmentedControl center
-            unitToggleButton.centerYAnchor.constraint(equalTo: segmentedControl.centerYAnchor),
-            // Toggle button flush to right margin
-            unitToggleButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
+            segmentedControl.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
             chartScrollView.topAnchor.constraint(equalTo: segmentedControl.bottomAnchor, constant: 20),
             chartScrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
             chartScrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
@@ -234,12 +234,13 @@ class MonthlyDetailViewController: UIViewController {
             chartStackView.widthAnchor.constraint(equalTo: chartScrollView.widthAnchor)
         ])
 
-        addChartCard(title: "스쿼트", subtitleLabel: squatSubtitleLabel, card: squatCard, chart: squatChart)
-        addChartCard(title: "푸쉬업", subtitleLabel: pushUpSubtitleLabel, card: pushUpCard, chart: pushUpChart)
-        addChartCard(title: "턱걸이", subtitleLabel: pullUpSubtitleLabel, card: pullUpCard, chart: pullUpChart)
+
+        addChartCard(title: "스쿼트", subtitleLabel: squatSubtitleLabel, totalLabel: squatTotalLabel, card: squatCard, chart: squatChart)
+        addChartCard(title: "푸쉬업", subtitleLabel: pushUpSubtitleLabel, totalLabel: pushUpTotalLabel, card: pushUpCard, chart: pushUpChart)
+        addChartCard(title: "턱걸이", subtitleLabel: pullUpSubtitleLabel, totalLabel: pullUpTotalLabel, card: pullUpCard, chart: pullUpChart)
     }
     
-    private func addChartCard(title: String, subtitleLabel: UILabel, card: UIView, chart: BarChartView) {
+    private func addChartCard(title: String, subtitleLabel: UILabel, totalLabel: UILabel, card: UIView, chart: BarChartView) {
         card.backgroundColor = UIColor(red: 28/255, green: 28/255, blue: 30/255, alpha: 1)
         card.layer.cornerRadius = 20
         card.layer.cornerCurve  = .continuous
@@ -256,6 +257,12 @@ class MonthlyDetailViewController: UIViewController {
         subtitleLabel.textColor = .lightGray
         subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
         subtitleLabel.text = ""
+
+        // 총합 라벨
+        totalLabel.font = .systemFont(ofSize: 20, weight: .medium)
+        totalLabel.textColor = .white
+        totalLabel.translatesAutoresizingMaskIntoConstraints = false
+        card.addSubview(totalLabel)
 
         chart.translatesAutoresizingMaskIntoConstraints = false
         chart.backgroundColor = UIColor(red: 28/255, green: 28/255, blue: 30/255, alpha: 1) // 짙은 회색 배경
@@ -275,6 +282,10 @@ class MonthlyDetailViewController: UIViewController {
             subtitleLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 2),
             subtitleLabel.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 10),
             subtitleLabel.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -10),
+
+            // 운동 이름과 서브타이틀 사이 중앙에 배치
+            totalLabel.centerYAnchor.constraint(equalTo: subtitleLabel.topAnchor),
+            totalLabel.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -10),
 
             chart.topAnchor.constraint(equalTo: subtitleLabel.bottomAnchor, constant: 2),
             chart.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 10),
@@ -334,6 +345,7 @@ class MonthlyDetailViewController: UIViewController {
             let day = baseDate ?? Date()
             let dayRecords = filterRecords { cal.isDate($0, inSameDayAs: day) }
             updateDailyCharts(with: dayRecords)
+            updateTotals(with: dayRecords)
 
         case 1: // 주
             let day = baseDate ?? Date()
@@ -344,6 +356,7 @@ class MonthlyDetailViewController: UIViewController {
                 cal.component(.yearForWeekOfYear, from: $0) == yW
             }
             updateWeeklyCharts(with: weekRecords)
+            updateTotals(with: weekRecords)
 
         case 2: // 월  → 일자(선택 월의 1…마지막 날)로 기능 변경
             let base = currentMonth ?? Date()
@@ -354,15 +367,41 @@ class MonthlyDetailViewController: UIViewController {
                 cal.component(.year,  from: $0) == y
             }
             updateDayOfMonthCharts(with: monthRecords, monthBase: base)
+            updateTotals(with: monthRecords)
 
         case 3: // 년  → 연간(월별) 차트
             let base = currentMonth ?? Date()
             let y = cal.component(.year, from: base)
             let yearRecords = filterRecords { cal.component(.year, from: $0) == y }
             updateMonthlyCharts(with: yearRecords, year: y)
+            updateTotals(with: yearRecords)
 
         default:
             resetCharts(with: "데이터 없음")
+            updateTotals(with: [])
+        }
+    }
+
+    private func updateTotals(with recs: [[String: Any]]) {
+        func computeTotals(for type: String) -> (count: Int, cal: Double) {
+            let filtered = recs.filter { $0["exerciseType"] as? String == type }
+            let countSum = filtered.reduce(0) { $0 + ($1["reps"] as? Int ?? 0) }
+            let calSum = filtered.reduce(0.0) { $0 + ($1["calories"] as? Double ?? 0.0) }
+            return (countSum, calSum)
+        }
+        let squat = computeTotals(for: "스쿼트")
+        let pushUp = computeTotals(for: "푸쉬업")
+        let pullUp = computeTotals(for: "턱걸이")
+        DispatchQueue.main.async {
+            if self.showCalories {
+                self.squatTotalLabel.text = "총 \(String(format: "%.1f", squat.cal)) kcal"
+                self.pushUpTotalLabel.text = "총 \(String(format: "%.1f", pushUp.cal)) kcal"
+                self.pullUpTotalLabel.text = "총 \(String(format: "%.1f", pullUp.cal)) kcal"
+            } else {
+                self.squatTotalLabel.text = "총 \(squat.count)개"
+                self.pushUpTotalLabel.text = "총 \(pushUp.count)개"
+                self.pullUpTotalLabel.text = "총 \(pullUp.count)개"
+            }
         }
     }
 
@@ -764,12 +803,10 @@ class MonthlyDetailViewController: UIViewController {
 
     @objc private func toggleUnit() {
         showCalories.toggle()
-        // segmentedControl과 같은 superview 내에서 토글 버튼을 찾음
-        for subview in view.subviews {
-            if let button = subview as? UIButton,
-               button.actions(forTarget: self, forControlEvent: .touchUpInside)?.contains("toggleUnit") == true {
-                button.setTitle(showCalories ? "칼로리" : "개수", for: .normal)
-            }
+        if let button = navigationItem.rightBarButtonItem?.customView as? UIButton {
+            button.setTitle(showCalories ? "칼로리" : "개수", for: .normal)
+            // 제목 변경 후 버튼 크기 재조정
+            button.sizeToFit()
         }
         updateAllCharts(for: segmentedControl.selectedSegmentIndex, baseDate: selectedDate)
     }

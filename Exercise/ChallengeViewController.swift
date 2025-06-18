@@ -41,17 +41,28 @@ class ChallengeViewController: UIViewController {
         l.translatesAutoresizingMaskIntoConstraints = false
         return l
     }()
-    private let tableView: UITableView = {
-        let tv = UITableView(frame: .zero, style: .insetGrouped)
-        tv.translatesAutoresizingMaskIntoConstraints = false
-        return tv
-    }()
     private let startButton: UIButton = {
         let b = UIButton(type: .system)
         b.setTitle("시작하기", for: .normal)
         b.titleLabel?.font = .systemFont(ofSize: 18, weight: .semibold)
         b.translatesAutoresizingMaskIntoConstraints = false
         return b
+    }()
+    
+    private let containerStack: UIStackView = {
+        let sv = UIStackView()
+        sv.axis = .vertical
+        sv.spacing = 16
+        sv.alignment = .leading
+        sv.translatesAutoresizingMaskIntoConstraints = false
+        return sv
+    }()
+    private let checklistStack: UIStackView = {
+        let sv = UIStackView()
+        sv.axis = .vertical
+        sv.spacing = 8
+        sv.translatesAutoresizingMaskIntoConstraints = false
+        return sv
     }()
     
     // MARK: - Data
@@ -114,7 +125,6 @@ class ChallengeViewController: UIViewController {
             UserDefaults.standard.setValue(todayString, forKey: DefaultsKeys.dailyChallengeDate)
             UserDefaults.standard.setValue(["type": type.rawValue, "reps": reps, "sets": sets], forKey: DefaultsKeys.dailyChallengeData)
         }
-        print("🎯 [Challenge] Generated: \(challenge.description)")
         checklist = (1...challenge.sets).map { "세트 \($0) 완료" }
     }
     
@@ -127,12 +137,10 @@ class ChallengeViewController: UIViewController {
             else { return nil }
             return r
         }
-        print("🔢 [Challenge] Reps array for \(type.rawValue): \(repsArray)")
         guard !repsArray.isEmpty else {
             return Double(10)  // 기록 없으면 기본 10회
         }
         let avg = Double(repsArray.reduce(0, +)) / Double(repsArray.count)
-        print("⚖️ [Challenge] Average reps last week for \(type.rawValue): \(avg)")
         return avg
     }
 
@@ -147,7 +155,6 @@ class ChallengeViewController: UIViewController {
             return recDate >= start && recDate <= end
         }
         let nonZero = filteredRecords.filter { ($0["reps"] as? Int ?? 0) > 0 }
-        print("🔍 [Challenge] Last 7 days non-zero record count: \(nonZero.count)")
         return nonZero
     }
     
@@ -164,41 +171,41 @@ class ChallengeViewController: UIViewController {
     
     // MARK: - UI Setup
     private func setupUI() {
-        view.addSubview(titleLabel)
-        view.addSubview(descriptionLabel)
-        view.addSubview(tableView)
-        view.addSubview(startButton)
-        
-        tableView.dataSource = self
-        tableView.delegate = self
-        tableView.register(UITableViewCell.self, forCellReuseIdentifier: "CheckCell")
-        tableView.allowsSelection = false
+        view.addSubview(containerStack)
+        containerStack.addArrangedSubview(titleLabel)
+        containerStack.addArrangedSubview(descriptionLabel)
+        containerStack.addArrangedSubview(checklistStack)
+        containerStack.addArrangedSubview(startButton)
+        NSLayoutConstraint.activate([
+            containerStack.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 16),
+            containerStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
+            containerStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16)
+        ])
         
         startButton.addTarget(self, action: #selector(startChallenge), for: .touchUpInside)
-        
-        NSLayoutConstraint.activate([
-            titleLabel.topAnchor.constraint(equalTo: view.safeAreaLayoutGuide.topAnchor, constant: 16),
-            titleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
-            titleLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
-            
-            descriptionLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 8),
-            descriptionLabel.leadingAnchor.constraint(equalTo: titleLabel.leadingAnchor),
-            descriptionLabel.trailingAnchor.constraint(equalTo: titleLabel.trailingAnchor),
-            
-            tableView.topAnchor.constraint(equalTo: descriptionLabel.bottomAnchor, constant: 16),
-            tableView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            tableView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            tableView.bottomAnchor.constraint(equalTo: startButton.topAnchor, constant: -16),
-            
-            startButton.topAnchor.constraint(equalTo: tableView.bottomAnchor, constant: 16),
-            startButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            startButton.bottomAnchor.constraint(lessThanOrEqualTo: view.safeAreaLayoutGuide.bottomAnchor, constant: -16)
-        ])
     }
     
     private func applyChallengeToUI() {
         descriptionLabel.text = challenge.description
-        tableView.reloadData()
+        updateChecklistUI()
+    }
+    
+    private func updateChecklistUI() {
+        checklistStack.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        for (i, text) in checklist.enumerated() {
+            let h = UIStackView()
+            h.axis = .horizontal
+            h.spacing = 8
+            let label = UILabel()
+            label.text = text
+            label.font = .systemFont(ofSize: 16)
+            label.textColor = .label
+            let icon = UIImageView(image: isChallengeCompleted ? UIImage(systemName: "checkmark.circle.fill") : UIImage(systemName: "circle"))
+            icon.tintColor = .systemBlue
+            h.addArrangedSubview(icon)
+            h.addArrangedSubview(label)
+            checklistStack.addArrangedSubview(h)
+        }
     }
     
     // MARK: - Actions
@@ -256,7 +263,7 @@ class ChallengeViewController: UIViewController {
         if type == challenge.type.rawValue && reps == challenge.reps && sets == challenge.sets {
             hasShownChallengeCompletionAlert = true
             isChallengeCompleted = true
-            tableView.reloadData()
+            updateChecklistUI()
             startButton.isEnabled = false
             startButton.setTitle("완료됨", for: .normal)
             let alert = UIAlertController(title: "🎉 축하합니다!",
@@ -266,33 +273,4 @@ class ChallengeViewController: UIViewController {
             present(alert, animated: true, completion: nil)
         }
     }
-}
-
-extension ChallengeViewController: UITableViewDataSource, UITableViewDelegate {
-    func tableView(_ tv: UITableView, numberOfRowsInSection section: Int) -> Int {
-        return checklist.count
-    }
-    func tableView(_ tv: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-        let cell = tv.dequeueReusableCell(withIdentifier: "CheckCell", for: indexPath)
-        cell.textLabel?.text = checklist[indexPath.row]
-        print("📝 [Challenge] Displaying checklist row \(indexPath.row): \(cell.textLabel?.text ?? "")")
-        if isChallengeCompleted {
-            cell.accessoryType = .checkmark
-        } else {
-            cell.accessoryType = .none
-        }
-        return cell
-    }
-    /*
-    func tableView(_ tv: UITableView, didSelectRowAt indexPath: IndexPath) {
-        // 완료 체크 토글
-        let cell = tv.cellForRow(at: indexPath)!
-        if cell.accessoryType == .none {
-            cell.accessoryType = .checkmark
-        } else {
-            cell.accessoryType = .none
-        }
-        tv.deselectRow(at: indexPath, animated: true)
-    }
-    */
 }

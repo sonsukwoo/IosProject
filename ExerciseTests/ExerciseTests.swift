@@ -1,10 +1,3 @@
-//
-//  ExerciseTests.swift
-//  ExerciseTests
-//
-//  Created by 손석우 on 11/7/24.
-//
-
 import Testing
 @testable import Exercise
 
